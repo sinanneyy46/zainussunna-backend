@@ -585,3 +585,16 @@ WARNING 2026-02-27 09:24:16,163 log Not Found: /api/auth/register/
 WARNING 2026-02-27 09:24:16,164 basehttp "POST /api/auth/register/ HTTP/1.1" 404 2699
 WARNING 2026-02-27 09:28:28,227 log Not Found: /api/auth/register/
 WARNING 2026-02-27 09:28:28,228 basehttp "POST /api/auth/register/ HTTP/1.1" 404 2699
+INFO 2026-03-03 19:44:01,624 autoreload Watching for file changes with StatReloader
+WARNING 2026-03-03 19:44:06,766 log Not Found: /
+WARNING 2026-03-03 19:44:06,767 basehttp "GET / HTTP/1.1" 404 2626
+WARNING 2026-03-03 19:44:08,461 log Not Found: /favicon.ico
+WARNING 2026-03-03 19:44:08,462 basehttp "GET /favicon.ico HTTP/1.1" 404 2677
+INFO 2026-03-03 19:44:16,282 basehttp "GET /admin/ HTTP/1.1" 302 0
+INFO 2026-03-03 19:44:16,318 basehttp "GET /admin/login/?next=/admin/ HTTP/1.1" 200 2943
+INFO 2026-03-03 19:44:35,131 basehttp "POST /admin/login/?next=/admin/ HTTP/1.1" 302 0
+INFO 2026-03-03 19:44:35,162 basehttp "GET /admin/ HTTP/1.1" 200 11269
+INFO 2026-03-03 19:44:35,227 basehttp "GET /static/admin/css/dashboard.css HTTP/1.1" 304 0
+INFO 2026-03-03 19:44:35,332 basehttp "GET /static/admin/img/icon-addlink.svg HTTP/1.1" 304 0
+INFO 2026-03-03 19:44:35,333 basehttp "GET /static/admin/img/icon-changelink.svg HTTP/1.1" 304 0
+INFO 2026-03-03 22:21:37,892 autoreload /Users/apple/Documents/Zainussunna Academy/backend/backend/settings.py changed, reloading.

@@ -21,6 +21,7 @@ ALLOWED_HOSTS = [
 CSRF_TRUSTED_ORIGINS = [
     "https://zainussunnaacademy.com",
     "https://www.zainussunnaacademy.com",
+    "https://api.zainussunnaacademy.com",
 ]
 
 # Application definition

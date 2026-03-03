@@ -234,22 +234,24 @@ class Command(BaseCommand):
                 'title': 'National Quran Competition',
                 'description': 'Our students secured top positions in the National Quran Recitation Competition 2023',
                 'date': '2023-12-15',
-                'images': [],
+                'image': '',  # No image for sample data
                 'is_visible': True
             },
             {
                 'title': 'Islamic Scholarship Award',
                 'description': 'Recognized for excellence in Islamic Studies at the State Level',
                 'date': '2023-11-20',
-                'images': [],
+                'image': '',  # No image for sample data
                 'is_visible': True
             },
         ]
         
         for ach_data in achievements:
+            # Remove empty image field before creating
+            ach_create_data = {k: v for k, v in ach_data.items() if v or k != 'image'}
             ach, created = Achievement.objects.get_or_create(
                 title=ach_data['title'],
-                defaults=ach_data
+                defaults=ach_create_data
             )
             status = 'Created' if created else 'Exists'
             self.stdout.write(f'  ✓ {status}: {ach_data["title"]}')

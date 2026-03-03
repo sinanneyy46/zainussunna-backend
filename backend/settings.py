@@ -1,7 +1,9 @@
 """
 Updated Django Settings for Academic Admission System
+Production-ready configuration with proper error handling.
 """
 import os
+import logging
 from pathlib import Path
 from datetime import timedelta
 
@@ -9,20 +11,43 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security settings
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-change-this-in-production')
-DEBUG = False
-ALLOWED_HOSTS = [
-    "zainussunnaacademy.com",
-    "www.zainussunnaacademy.com",
-    "api.zainussunnaacademy.com",
-]
+# Get SECRET_KEY - use fallback in development, require in production
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+
+if not SECRET_KEY:
+    # Fallback for local development - NOT for production use!
+    SECRET_KEY = 'django-insecure-dev-key-for-local-development-only-change-in-production'
+    print("⚠️  WARNING: Using insecure fallback SECRET_KEY. Set DJANGO_SECRET_KEY for production!")
+
+# DEBUG - default to True for local development
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
+
+# ALLOWED_HOSTS - must be set in production
+ALLOWED_HOSTS_ENV = os.environ.get('ALLOWED_HOSTS', '')
+if ALLOWED_HOSTS_ENV:
+    ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS_ENV.split(',') if h.strip()]
+else:
+    # Fallback for development
+    ALLOWED_HOSTS = [
+        "localhost",
+        "127.0.0.1",
+        "zainussunnaacademy.com",
+        "www.zainussunnaacademy.com",
+        "api.zainussunnaacademy.com",
+    ]
 
 # CSRF trusted origins for production
-CSRF_TRUSTED_ORIGINS = [
-    "https://zainussunnaacademy.com",
-    "https://www.zainussunnaacademy.com",
-    "https://api.zainussunnaacademy.com",
-]
+CSRF_TRUSTED_ORIGINS_ENV = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+if CSRF_TRUSTED_ORIGINS_ENV:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_ENV.split(',') if origin.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        "https://localhost",
+        "https://127.0.0.1",
+        "https://zainussunnaacademy.com",
+        "https://www.zainussunnaacademy.com",
+        "https://api.zainussunnaacademy.com",
+    ]
 
 # Application definition
 INSTALLED_APPS = [
@@ -75,15 +100,40 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# Database - SQLite by default, PostgreSQL recommended for production
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+# Database configuration - Auto-detect production vs development
+# Check for PostgreSQL environment variables first (production on Render)
+db_url = os.environ.get('DATABASE_URL')
 
-# Production database (uncomment and configure for production)
+if db_url:
+    # Use PostgreSQL from DATABASE_URL (Render provides this)
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(db_url, conn_max_age=600)
+    }
+else:
+    # Check for individual PostgreSQL variables
+    db_host = os.environ.get('DB_HOST')
+    if db_host:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': os.environ.get('DB_NAME', 'zainussunna'),
+                'USER': os.environ.get('DB_USER', 'postgres'),
+                'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+                'HOST': db_host,
+                'PORT': os.environ.get('DB_PORT', '5432'),
+            }
+        }
+    else:
+        # Fallback to SQLite for development
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
+
+# Legacy PostgreSQL configuration (commented out - use DATABASE_URL instead)
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.postgresql',
@@ -112,7 +162,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'frontend/build/static']
+# Point to frontend build static folder (parent of backend)
+STATICFILES_DIRS = [BASE_DIR.parent / 'frontend' / 'build' / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files (Uploads)
@@ -156,12 +207,20 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
 }
 
-# CORS Configuration
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = [
-    "https://zainussunnaacademy.com",
-    "https://www.zainussunnaacademy.com",
-]
+# CORS Configuration - Dynamic based on environment
+CORS_ALLOWED_ORIGINS_ENV = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+if CORS_ALLOWED_ORIGINS_ENV:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_ENV.split(',') if origin.strip()]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "https://localhost",
+        "https://127.0.0.1",
+        "https://zainussunnaacademy.com",
+        "https://www.zainussunnaacademy.com",
+    ]
+
+# Set to True only in development
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 
 # File upload settings
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB

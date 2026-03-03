@@ -31,10 +31,10 @@ else:
     ALLOWED_HOSTS = [
         "localhost",
         "127.0.0.1",
-        "testserver",  # For Django test client
         "zainussunnaacademy.com",
         "www.zainussunnaacademy.com",
         "api.zainussunnaacademy.com",
+        "zainussunna-backend.onrender.com",
     ]
 
 # CSRF trusted origins for production
@@ -48,7 +48,9 @@ else:
         "https://zainussunnaacademy.com",
         "https://www.zainussunnaacademy.com",
         "https://api.zainussunnaacademy.com",
+        "https://zainussunna-backend.onrender.com",
     ]
+
 
 # Application definition
 INSTALLED_APPS = [

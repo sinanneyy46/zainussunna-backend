@@ -31,6 +31,7 @@ else:
     ALLOWED_HOSTS = [
         "localhost",
         "127.0.0.1",
+        "testserver",  # For Django test client
         "zainussunnaacademy.com",
         "www.zainussunnaacademy.com",
         "api.zainussunnaacademy.com",
@@ -163,7 +164,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Point to frontend build static folder (parent of backend)
-# STATICFILES_DIRS = [BASE_DIR.parent / 'frontend' / 'build' / 'static']
+STATICFILES_DIRS = [BASE_DIR.parent / 'frontend' / 'build' / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files (Uploads)

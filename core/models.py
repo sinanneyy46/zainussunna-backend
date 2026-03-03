@@ -486,7 +486,7 @@ class Achievement(TimeStampedModel):
     title = models.CharField(max_length=200)
     description = models.TextField()
     date = models.DateField()
-    image = models.ImageField(upload_to='achievements/')
+    image = models.ImageField(upload_to='achievements/', null=True, blank=True)
     is_visible = models.BooleanField(default=True)
     display_order = models.PositiveIntegerField(default=0)
     

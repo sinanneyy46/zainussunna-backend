@@ -182,10 +182,19 @@ class ContentPageAdmin(admin.ModelAdmin):
 
 @admin.register(Achievement)
 class AchievementAdmin(admin.ModelAdmin):
-    list_display = ['title', 'date', 'is_visible', 'display_order', 'created_at']
+    list_display = ['title', 'image_preview', 'date', 'is_visible', 'display_order', 'created_at']
     list_filter = ['is_visible', 'date']
     search_fields = ['title', 'description']
     ordering = ['-date', '-display_order']
+    
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html(
+                '<img src="{}" style="width: 50px; height: auto; border-radius: 4px;" />',
+                obj.image.url
+            )
+        return '-'
+    image_preview.short_description = 'Image'
 
 
 @admin.register(GalleryItem)

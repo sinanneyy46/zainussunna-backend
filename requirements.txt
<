@@ -1,0 +1,24 @@
+# Zainussunna Academy - Backend Requirements
+# Django and REST Framework
+Django>=4.2,<5.0
+djangorestframework>=3.14,<4.0
+django-cors-headers>=4.0,<5.0
+django-filter>=23.0,<24.0
+
+# JWT Authentication
+djangorestframework-simplejwt>=5.3,<6.0
+
+# Database
+psycopg2-binary>=2.9,<3.0  # PostgreSQL (production)
+
+# File handling
+Pillow>=10.0,<11.0
+
+# Development
+pytest>=7.0,<8.0
+pytest-django>=4.5,<5.0
+
+# Production (uncomment when deploying)
+# gunicorn>=21.0,<22.0
+# whitenoise>=6.0,<7.0
+# django-heroku>=0.3,<1.0

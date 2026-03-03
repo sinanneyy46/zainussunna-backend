@@ -101,11 +101,18 @@ class AdmissionAdmin(admin.ModelAdmin):
     actions = ['mark_under_review', 'approve_admissions', 'reject_admissions']
     
     def program_link(self, obj):
-        url = reverse('admin:core_program_change', args=[obj.program.id])
-        return format_html('<a href="{}">{}</a>', url, obj.program.name)
+        try:
+            if obj and obj.program:
+                url = reverse('admin:core_program_change', args=[obj.program.id])
+                return format_html('<a href="{}">{}</a>', url, obj.program.name)
+            return '-'
+        except Exception:
+            return '-'
     program_link.short_description = 'Program'
     
     def state_badge(self, obj):
+        if not obj:
+            return '-'
         colors = {
             'draft': 'gray',
             'submitted': 'blue',
@@ -188,11 +195,14 @@ class AchievementAdmin(admin.ModelAdmin):
     ordering = ['-date', '-display_order']
     
     def image_preview(self, obj):
-        if obj.image:
-            return format_html(
-                '<img src="{}" style="width: 50px; height: auto; border-radius: 4px;" />',
-                obj.image.url
-            )
+        if obj and obj.image:
+            try:
+                return format_html(
+                    '<img src="{}" style="width: 50px; height: auto; border-radius: 4px;" />',
+                    obj.image.url
+                )
+            except Exception:
+                return '-'
         return '-'
     image_preview.short_description = 'Image'
 
@@ -205,11 +215,14 @@ class GalleryItemAdmin(admin.ModelAdmin):
     ordering = ['-display_order']
     
     def image_preview(self, obj):
-        if obj.image:
-            return format_html(
-                '<img src="{}" style="width: 100px; height: auto; border-radius: 4px;" />',
-                obj.image.url
-            )
+        if obj and obj.image:
+            try:
+                return format_html(
+                    '<img src="{}" style="width: 100px; height: auto; border-radius: 4px;" />',
+                    obj.image.url
+                )
+            except Exception:
+                return '-'
         return '-'
     image_preview.short_description = 'Preview'
 

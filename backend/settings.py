@@ -20,8 +20,7 @@ if not SECRET_KEY:
     print("⚠️  WARNING: Using insecure fallback SECRET_KEY. Set DJANGO_SECRET_KEY for production!")
 
 # DEBUG - default to True for local development
-# DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
-DEBUG=True
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
 # ALLOWED_HOSTS - must be set in production
 ALLOWED_HOSTS_ENV = os.environ.get('ALLOWED_HOSTS', '')

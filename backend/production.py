@@ -38,6 +38,8 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get
     'zainussunnaacademy.com',
     'www.zainussunnaacademy.com',
     'api.zainussunnaacademy.com',
+    'zainussunna-backend.onrender.com',
+    '*.onrender.com',
 ]
 
 # CORS - restrict in production

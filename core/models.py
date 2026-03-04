@@ -27,7 +27,9 @@ class Program(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True)
+    subtitle = models.CharField(max_length=200, blank=True, help_text="e.g., Da'wa Dars Program")
     description = models.TextField()
+    image = models.ImageField(upload_to='programs/', null=True, blank=True, help_text="Program hero image")
     min_age = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(100)])
     max_age = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(100)])
     is_active = models.BooleanField(default=True)
@@ -36,6 +38,18 @@ class Program(TimeStampedModel):
     # Program-specific configuration as JSON
     # Contains: required_fields, conditional_questions, required_documents
     config = models.JSONField(default=dict, blank=True)
+    
+    # Frontend-specific fields stored as JSON
+    # features: [{"icon": "book", "title": "...", "description": "..."}]
+    features = models.JSONField(default=list, blank=True)
+    # curriculum: ["Fiqh", "Aqeedah", ...]
+    curriculum = models.JSONField(default=list, blank=True)
+    # outcomes: ["Outcome 1", "Outcome 2", ...]
+    outcomes = models.JSONField(default=list, blank=True)
+    # gallery: [{"id": 1, "image": "url"}, ...] - gallery image URLs
+    gallery = models.JSONField(default=list, blank=True)
+    # faq: [{"q": "question", "a": "answer"}, ...]
+    faq = models.JSONField(default=list, blank=True)
     
     class Meta:
         ordering = ['display_order', 'name']
@@ -482,10 +496,17 @@ class Achievement(TimeStampedModel):
     """
     Student achievements with title, description, date, images.
     """
+    CATEGORY_CHOICES = [
+        ('academic', 'Academic'),
+        ('hifz', 'Hifz Completion'),
+        ('competition', 'Competition'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=200)
     description = models.TextField()
     date = models.DateField()
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='academic')
     image = models.ImageField(upload_to='achievements/', null=True, blank=True)
     is_visible = models.BooleanField(default=True)
     display_order = models.PositiveIntegerField(default=0)
@@ -501,10 +522,18 @@ class GalleryItem(TimeStampedModel):
     """
     Gallery images with metadata.
     """
+    CATEGORY_CHOICES = [
+        ('campus', 'Campus'),
+        ('classroom', 'Classroom'),
+        ('events', 'Events'),
+        ('graduation', 'Graduation'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=200, blank=True)
     image = models.ImageField(upload_to='gallery/')
     caption = models.TextField(blank=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='campus')
     date_taken = models.DateField(null=True, blank=True)
     date_hidden = models.DateField(
         help_text="Date stored but hidden from UI",
@@ -582,6 +611,75 @@ class Faculty(TimeStampedModel):
     
     def __str__(self):
         return f"{self.name} - {self.role}"
+
+
+class WhatsAppConfig(TimeStampedModel):
+    """
+    WhatsApp configuration for admission notifications.
+    Stores phone number and message templates with emojis.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    phone_number = models.CharField(
+        max_length=20, 
+        help_text="WhatsApp phone number with country code (e.g., +91xxxxxxxxxx)"
+    )
+    is_active = models.BooleanField(default=True)
+    
+    # Message templates with emojis
+    admission_message_template = models.TextField(
+        default="🎓 *New Admission Application*\n\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "📋 *Application Details:*\n"
+                "• Name: {student_name}\n"
+                "• Program: {program_name}\n"
+                "• Class: {standard}\n"
+                "• Phone: {phone}\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "🏫 *Guardian Info:*\n"
+                "• Name: {guardian_name}\n"
+                "• Relation: {guardian_relation}\n"
+                "• Phone: {guardian_phone}\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "✨ *Zainussunna Academy*\n"
+                "Excellence in Islamic Education",
+        help_text="Message template with placeholders: {student_name}, {program_name}, {standard}, {phone}, {guardian_name}, {guardian_relation}, {guardian_phone}"
+    )
+    
+    # Success message after submission
+    success_message_template = models.TextField(
+        default="✅ *Admission Submitted Successfully!*\n\n"
+                "🕌 *Zainussunna Academy*\n\n"
+                "Dear {student_name},\n\n"
+                "🎉 Your application for *{program_name}* has been submitted successfully!\n\n"
+                "📝 *Application Number:* {application_number}\n\n"
+                "Our team will contact you shortly. Please keep your phone number ready.\n\n"
+                "✨ *JazakAllah Khair* for choosing Zainussunna Academy!",
+        help_text="Success message sent to student/guardian"
+    )
+    
+    # Enable/disable features
+    notify_on_submission = models.BooleanField(default=True)
+    send_confirmation = models.BooleanField(default=True)
+    
+    class Meta:
+        verbose_name = "WhatsApp Configuration"
+        verbose_name_plural = "WhatsApp Configuration"
+    
+    def __str__(self):
+        return f"WhatsApp Config - {self.phone_number}"
+    
+    @classmethod
+    def get_active_config(cls):
+        """Get the active WhatsApp configuration"""
+        return cls.objects.filter(is_active=True).first()
+    
+    def format_admission_message(self, admission_data):
+        """Format the admission message with data"""
+        return self.admission_message_template.format(**admission_data)
+    
+    def format_success_message(self, data):
+        """Format the success message with data"""
+        return self.success_message_template.format(**data)
 
 
 class AnalyticEvent(TimeStampedModel):

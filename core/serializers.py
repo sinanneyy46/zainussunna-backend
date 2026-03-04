@@ -7,7 +7,8 @@ from django.utils import timezone
 from .models import (
     Program, ProgramField, Admission, AdmissionState,
     AdmissionStateLog, AdmissionEvent, InternalNote,
-    ContentPage, Achievement, GalleryItem, Enquiry, AnalyticEvent, Faculty
+    ContentPage, Achievement, GalleryItem, Enquiry, AnalyticEvent, Faculty,
+    WhatsAppConfig
 )
 
 
@@ -24,13 +25,13 @@ class ProgramFieldSerializer(serializers.ModelSerializer):
 
 class ProgramSerializer(serializers.ModelSerializer):
     """Program serializer with embedded fields for schema generation"""
-    fields = ProgramFieldSerializer(source='fields.filter(is_visible=True)', many=True)
     
     class Meta:
         model = Program
         fields = [
-            'id', 'name', 'slug', 'description', 'min_age', 'max_age',
-            'is_active', 'display_order', 'config', 'fields'
+            'id', 'name', 'slug', 'subtitle', 'description', 'image',
+            'min_age', 'max_age', 'is_active', 'display_order', 'config',
+            'features', 'curriculum', 'outcomes', 'gallery', 'faq'
         ]
 
 
@@ -38,7 +39,7 @@ class ProgramSummarySerializer(serializers.ModelSerializer):
     """Lightweight program info for dropdowns and lists"""
     class Meta:
         model = Program
-        fields = ['id', 'name', 'slug', 'min_age', 'max_age']
+        fields = ['id', 'name', 'slug', 'subtitle', 'min_age', 'max_age']
 
 
 class AdmissionStateLogSerializer(serializers.ModelSerializer):
@@ -303,7 +304,7 @@ class AchievementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Achievement
         fields = [
-            'id', 'title', 'description', 'date', 'image',
+            'id', 'title', 'description', 'date', 'category', 'image',
             'is_visible', 'display_order', 'created_at'
         ]
 
@@ -313,7 +314,7 @@ class GalleryItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = GalleryItem
         fields = [
-            'id', 'title', 'image', 'caption', 'date_taken',
+            'id', 'title', 'image', 'caption', 'category', 'date_taken',
             'display_order', 'is_visible', 'created_at'
         ]
 
@@ -357,3 +358,24 @@ class FacultySerializer(serializers.ModelSerializer):
             'id', 'name', 'role', 'qualification', 'bio',
             'photo', 'display_order', 'is_active'
         ]
+
+
+class WhatsAppConfigSerializer(serializers.ModelSerializer):
+    """Serializer for WhatsApp configuration"""
+    class Meta:
+        model = WhatsAppConfig
+        fields = [
+            'id', 'phone_number', 'is_active',
+            'admission_message_template', 'success_message_template',
+            'notify_on_submission', 'send_confirmation',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate(self, attrs):
+        # Ensure only one active config at a time
+        if attrs.get('is_active', False):
+            WhatsAppConfig.objects.filter(is_active=True).exclude(
+                id=self.instance.id if self.instance else None
+            ).update(is_active=False)
+        return attrs

@@ -5,15 +5,18 @@ RESTful API with state machine enforcement and schema generation.
 from rest_framework import viewsets, status, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
 from io import BytesIO
+import urllib.parse
 
 from .models import (
     Program, ProgramField, Admission, AdmissionState,
     AdmissionStateLog, AdmissionEvent, InternalNote,
-    ContentPage, Achievement, GalleryItem, Enquiry, AnalyticEvent, Faculty
+    ContentPage, Achievement, GalleryItem, Enquiry, AnalyticEvent, Faculty,
+    WhatsAppConfig
 )
 from .serializers import (
     ProgramSerializer, ProgramSummarySerializer, ProgramFieldSerializer,
@@ -22,7 +25,7 @@ from .serializers import (
     AdmissionSubmitSerializer, StateTransitionSerializer,
     InternalNoteSerializer, ContentPageSerializer,
     AchievementSerializer, GalleryItemSerializer, EnquirySerializer,
-    FacultySerializer
+    FacultySerializer, WhatsAppConfigSerializer
 )
 
 try:
@@ -547,5 +550,92 @@ class AdmissionExportView(views.APIView):
                 'Content-Disposition': f'attachment; filename="{filename}"'
             }
         )
+
+
+class WhatsAppConfigViewSet(viewsets.ModelViewSet):
+    """
+    WhatsApp Configuration API.
+    Public read access, admin write access.
+    """
+    queryset = WhatsAppConfig.objects.all()
+    serializer_class = WhatsAppConfigSerializer
+    
+    def get_permissions(self):
+        """Allow public read, require auth for write"""
+        if self.action in ['list', 'retrieve']:
+            return []
+        return [IsAuthenticated()]
+    
+    def get_queryset(self):
+        # Return active config for public users
+        if self.action in ['list', 'retrieve']:
+            return WhatsAppConfig.objects.filter(is_active=True)
+        return WhatsAppConfig.objects.all()
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get the active WhatsApp configuration"""
+        config = WhatsAppConfig.get_active_config()
+        if config:
+            serializer = self.get_serializer(config)
+            return Response(serializer.data)
+        return Response(
+            {'error': 'No active WhatsApp configuration'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    @action(detail=False, methods=['post'])
+    def generate_message(self, request):
+        """Generate WhatsApp message for an admission"""
+        admission_id = request.data.get('admission_id')
+        message_type = request.data.get('message_type', 'success')  # 'success' or 'notification'
+        
+        if not admission_id:
+            return Response(
+                {'error': 'admission_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            admission = Admission.objects.get(id=admission_id)
+        except Admission.DoesNotExist:
+            return Response(
+                {'error': 'Admission not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        config = WhatsAppConfig.get_active_config()
+        if not config:
+            return Response(
+                {'error': 'WhatsApp not configured'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Prepare data for message
+        data = {
+            'student_name': admission.name,
+            'program_name': admission.program.name if admission.program else '',
+            'standard': admission.standard or '',
+            'phone': f"{admission.phone_country_code} {admission.phone}",
+            'guardian_name': admission.guardian_name or '',
+            'guardian_relation': admission.guardian_relation or '',
+            'guardian_phone': f"{admission.guardian_phone_country_code} {admission.guardian_phone}" if admission.guardian_phone else '',
+            'application_number': admission.application_number,
+        }
+        
+        if message_type == 'success':
+            message = config.format_success_message(data)
+        else:
+            message = config.format_admission_message(data)
+        
+        # Generate WhatsApp URL
+        phone = config.phone_number.replace('+', '').replace(' ', '')
+        whatsapp_url = f"https://wa.me/{phone}?text={urllib.parse.quote(message)}"
+        
+        return Response({
+            'message': message,
+            'whatsapp_url': whatsapp_url,
+            'phone_number': config.phone_number
+        })
 
 

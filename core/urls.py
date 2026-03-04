@@ -9,7 +9,7 @@ from .views import (
     ProgramViewSet, AdmissionViewSet, InternalNoteViewSet,
     ContentPageViewSet, AchievementViewSet, GalleryViewSet,
     EnquiryViewSet, AnalyticsViewSet, HealthCheckView, FacultyViewSet,
-    AdmissionExportView
+    AdmissionExportView, WhatsAppConfigViewSet
 )
 
 router = DefaultRouter()
@@ -19,8 +19,10 @@ router.register(r'notes', InternalNoteViewSet, basename='note')
 router.register(r'content', ContentPageViewSet, basename='content')
 router.register(r'achievements', AchievementViewSet, basename='achievement')
 router.register(r'gallery', GalleryViewSet, basename='gallery')
+router.register(r'faculty', FacultyViewSet, basename='faculty')
 router.register(r'enquiries', EnquiryViewSet, basename='enquiry')
 router.register(r'analytics', AnalyticsViewSet, basename='analytics')
+router.register(r'whatsapp', WhatsAppConfigViewSet, basename='whatsapp')
 
 urlpatterns = [
     path('', include(router.urls)),

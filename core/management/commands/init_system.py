@@ -3,7 +3,7 @@ Management command to initialize the admission system with sample data.
 Run: python manage.py init_system
 """
 from django.core.management.base import BaseCommand
-from core.models import Program, ProgramField, ContentPage, Achievement, GalleryItem
+from core.models import Program, ProgramField, ContentPage, Achievement, GalleryItem, WhatsAppConfig
 
 
 class Command(BaseCommand):
@@ -21,6 +21,12 @@ class Command(BaseCommand):
         # Create Sample Achievements
         self.create_achievements()
         
+        # Create Sample Gallery Items
+        self.create_gallery()
+        
+        # Create WhatsApp Configuration
+        self.create_whatsapp_config()
+        
         self.stdout.write(self.style.SUCCESS('\n✓ System initialized successfully!'))
 
     def create_programs(self):
@@ -30,16 +36,77 @@ class Command(BaseCommand):
         shareea, created = Program.objects.get_or_create(
             slug='shareea',
             defaults={
-                'name': 'Integrated Sharee\'a',
-                'description': 'Comprehensive Islamic studies program combining Sharee\'a with modern education',
+                'name': "Integrated Sharee'a",
+                'subtitle': "Da'wa Dars Program",
+                'description': "A comprehensive Islamic studies program centered on classical learning and guidance-oriented education. Designed to help students develop sound understanding, clarity of thought, and responsible engagement with Islamic knowledge.",
                 'min_age': 10,
                 'max_age': 18,
+                'is_active': True,
                 'display_order': 1,
                 'config': {
                     'duration': '4 years',
                     'qualification': 'Higher Secondary',
-                    'features': ['Arabic fluency', 'Quran memorization', 'Islamic jurisprudence']
-                }
+                },
+                'features': [
+                    {
+                        'icon': 'book',
+                        'title': 'Classical Text Study',
+                        'description': 'In-depth study of core classical Islamic texts with proper understanding and context'
+                    },
+                    {
+                        'icon': 'structure',
+                        'title': 'Mukhtasar-Based Curriculum',
+                        'description': 'Structured curriculum following traditional Mukhtasar methodology for systematic learning'
+                    },
+                    {
+                        'icon': 'guidance',
+                        'title': 'Guided Learning',
+                        'description': 'Personal guidance under experienced Ustads with regular evaluation and feedback'
+                    },
+                    {
+                        'icon': 'community',
+                        'title': 'Scholarly Environment',
+                        'description': 'Immersive learning environment fostering academic excellence and character development'
+                    }
+                ],
+                'curriculum': [
+                    'Fiqh (Islamic Jurisprudence)',
+                    'Aqeedah (Islamic Creed)',
+                    'Seerah (Prophetic Biography)',
+                    'Hadith Studies',
+                    'Arabic Language',
+                    'Usul al-Fiqh (Principles of Jurisprudence)'
+                ],
+                'outcomes': [
+                    'Strong foundational knowledge in Islamic sciences',
+                    'Ability to understand and explain classical texts',
+                    'Critical thinking and analytical skills',
+                    'Preparation for advanced Islamic studies',
+                    'Character development and spiritual growth'
+                ],
+                'gallery': [],
+                'faq': [
+                    {
+                        'q': 'Who can apply for these programs?',
+                        'a': 'Students who are committed to disciplined Islamic study and have completed basic Islamic education. Both programs welcome sincere learners dedicated to gaining authentic knowledge.'
+                    },
+                    {
+                        'q': 'What is the medium of instruction?',
+                        'a': 'Primary instruction is in Arabic with guided explanation in English/Malayalam to ensure proper understanding of concepts and texts.'
+                    },
+                    {
+                        'q': 'How are students assessed?',
+                        'a': 'Regular evaluation through oral examinations, written tests, and practical application. Progress is monitored continuously with feedback from instructors.'
+                    },
+                    {
+                        'q': 'What is the duration of each program?',
+                        'a': "Integrated Sharee'a is a multi-year program with progressive levels. Thahfeel-ul-Qu'ran typically takes 3-4 years depending on individual pace and memorization capacity."
+                    },
+                    {
+                        'q': 'Are there any fees for the programs?',
+                        'a': 'The academy operates on a donation-based system. There are no fixed fees, but families are encouraged to contribute according to their capacity to support the institution.'
+                    }
+                ]
             }
         )
         
@@ -47,22 +114,98 @@ class Command(BaseCommand):
             self.create_shareea_fields(shareea)
             self.stdout.write(f'  ✓ Created program: {shareea.name}')
         else:
-            self.stdout.write(f'  ✓ Program exists: {shareea.name}')
+            # Update existing program with new fields
+            shareea.subtitle = "Da'wa Dars Program"
+            shareea.features = [
+                {'icon': 'book', 'title': 'Classical Text Study', 'description': 'In-depth study of core classical Islamic texts'},
+                {'icon': 'structure', 'title': 'Mukhtasar-Based Curriculum', 'description': 'Structured curriculum following traditional methodology'},
+                {'icon': 'guidance', 'title': 'Guided Learning', 'description': 'Personal guidance under experienced Ustads'},
+                {'icon': 'community', 'title': 'Scholarly Environment', 'description': 'Immersive learning environment'}
+            ]
+            shareea.curriculum = ['Fiqh', 'Aqeedah', 'Seerah', 'Hadith Studies', 'Arabic Language', 'Usul al-Fiqh']
+            shareea.outcomes = ['Strong foundational knowledge', 'Ability to understand classical texts', 'Critical thinking skills']
+            shareea.faq = [
+                {'q': 'Who can apply?', 'a': 'Students committed to disciplined Islamic study.'},
+                {'q': 'What is the medium of instruction?', 'a': 'Arabic with English/Malayalam explanation.'}
+            ]
+            shareea.save()
+            self.stdout.write(f'  ✓ Updated program: {shareea.name}')
 
-        # Thahfīẓ-ul-Qur'an Program
+        # Thahfīẓ-ul-Qu'an Program
         thahfeez, created = Program.objects.get_or_create(
             slug='thahfeez',
             defaults={
-                'name': 'Thahfīẓ-ul-Qur\'an',
-                'description': 'Complete Quran memorization program with Tajweed rules',
+                'name': "Thahfīẓ-ul-Qu'an",
+                'subtitle': "Thahfeel-ul-Qu'ran Program",
+                'description': "A focused Hifz program dedicated to Qur'an memorization with accuracy, discipline, and consistent revision. The program supports students through structured routines and guided supervision to achieve complete memorization.",
                 'min_age': 9,
                 'max_age': 18,
+                'is_active': True,
                 'display_order': 2,
                 'config': {
                     'duration': '3-5 years',
                     'qualification': 'Hifz Certificate',
-                    'features': ['Tajweed rules', 'Memorization techniques', 'Review sessions']
-                }
+                },
+                'features': [
+                    {
+                        'icon': 'memorization',
+                        'title': 'Systematic Memorization',
+                        'description': "Structured approach to Qur'an memorization with personalized pacing"
+                    },
+                    {
+                        'icon': 'tajweed',
+                        'title': 'Tajweed Mastery',
+                        'description': 'Strong emphasis on accurate pronunciation and application of tajweed rules'
+                    },
+                    {
+                        'icon': 'revision',
+                        'title': 'Daily Revision',
+                        'description': 'Consistent revision schedule for strong retention'
+                    },
+                    {
+                        'icon': 'discipline',
+                        'title': 'Disciplined Environment',
+                        'description': 'Structured daily routine fostering discipline and focus'
+                    }
+                ],
+                'curriculum': [
+                    'Complete Qur-an Memorization (Hifz)',
+                    'Tajweed Rules and Application',
+                    'Qur-anic Recitation (Tilawah)',
+                    'Memorization Techniques',
+                    'Revision and Retention Methods',
+                    'Spiritual Development'
+                ],
+                'outcomes': [
+                    'Complete memorization of the Holy Qur-an',
+                    'Mastery of tajweed rules and proper recitation',
+                    'Strong retention through systematic revision',
+                    'Disciplined study habits and time management',
+                    'Spiritual connection with the Qur-an'
+                ],
+                'gallery': [],
+                'faq': [
+                    {
+                        'q': 'Who can apply for these programs?',
+                        'a': 'Students who are committed to disciplined Islamic study and have completed basic Islamic education. Both programs welcome sincere learners dedicated to gaining authentic knowledge.'
+                    },
+                    {
+                        'q': 'What is the medium of instruction?',
+                        'a': 'Primary instruction is in Arabic with guided explanation in English/Malayalam to ensure proper understanding of concepts and texts.'
+                    },
+                    {
+                        'q': 'How are students assessed?',
+                        'a': 'Regular evaluation through oral examinations, written tests, and practical application. Progress is monitored continuously with feedback from instructors.'
+                    },
+                    {
+                        'q': 'What is the duration of each program?',
+                        'a': "Integrated Sharee'a is a multi-year program with progressive levels. Thahfeel-ul-Qu'ran typically takes 3-4 years depending on individual pace and memorization capacity."
+                    },
+                    {
+                        'q': 'Are there any fees for the programs?',
+                        'a': 'The academy operates on a donation-based system. There are no fixed fees, but families are encouraged to contribute according to their capacity to support the institution.'
+                    }
+                ]
             }
         )
         
@@ -70,7 +213,22 @@ class Command(BaseCommand):
             self.create_thahfeez_fields(thahfeez)
             self.stdout.write(f'  ✓ Created program: {thahfeez.name}')
         else:
-            self.stdout.write(f'  ✓ Program exists: {thahfeez.name}')
+            # Update existing program with new fields
+            thahfeez.subtitle = "Thahfeel-ul-Qu'ran Program"
+            thahfeez.features = [
+                {'icon': 'memorization', 'title': 'Systematic Memorization', 'description': 'Structured approach to Hifz'},
+                {'icon': 'tajweed', 'title': 'Tajweed Mastery', 'description': 'Emphasis on proper pronunciation'},
+                {'icon': 'revision', 'title': 'Daily Revision', 'description': 'Consistent revision schedule'},
+                {'icon': 'discipline', 'title': 'Disciplined Environment', 'description': 'Structured daily routine'}
+            ]
+            thahfeez.curriculum = ['Complete Hifz', 'Tajweed Rules', 'Tilawah', 'Memorization Techniques', 'Revision Methods']
+            thahfeez.outcomes = ['Complete memorization', 'Tajweed mastery', 'Retention', 'Disciplined habits']
+            thahfeez.faq = [
+                {'q': 'Who can apply?', 'a': 'Students committed to disciplined Islamic study.'},
+                {'q': 'What is the medium of instruction?', 'a': 'Arabic with English/Malayalam explanation.'}
+            ]
+            thahfeez.save()
+            self.stdout.write(f'  ✓ Updated program: {thahfeez.name}')
 
     def create_shareea_fields(self, program):
         """Create form fields for Sharee'a program"""
@@ -231,27 +389,155 @@ class Command(BaseCommand):
         
         achievements = [
             {
-                'title': 'National Quran Competition',
-                'description': 'Our students secured top positions in the National Quran Recitation Competition 2023',
+                'title': 'National Quran Competition Winner 🏆',
+                'description': 'Our student Ahmed Khan secured First Place in the National Quran Recitation Competition 2023 held in Delhi. This achievement reflects our commitment to excellence in Tajweed and recitation.',
                 'date': '2023-12-15',
-                'image': '',  # No image for sample data
-                'is_visible': True
+                'category': 'competition',
+                'is_visible': True,
+                'display_order': 1
             },
             {
-                'title': 'Islamic Scholarship Award',
-                'description': 'Recognized for excellence in Islamic Studies at the State Level',
+                'title': 'Islamic Scholarship Award 📜',
+                'description': 'Recognized for excellence in Islamic Studies at the State Level. Our students have consistently demonstrated outstanding knowledge in Fiqh, Aqeedah, and Hadith.',
                 'date': '2023-11-20',
-                'image': '',  # No image for sample data
-                'is_visible': True
+                'category': 'academic',
+                'is_visible': True,
+                'display_order': 2
+            },
+            {
+                'title': '50 Huffaz Complete Hifz 🎉',
+                'description': 'Alhamdhulillah, congratulations to our 50 students who completed memorization of the Holy Quran with proper Tajweed. May Allah accept their efforts.',
+                'date': '2023-10-15',
+                'category': 'hifz',
+                'is_visible': True,
+                'display_order': 3
+            },
+            {
+                'title': 'State Level Declamation Contest',
+                'description': 'Our students won multiple awards in the Islamic Knowledge Declamation Contest organized by the State Islamic Education Board.',
+                'date': '2023-09-10',
+                'category': 'competition',
+                'is_visible': True,
+                'display_order': 4
+            },
+            {
+                'title': 'Best Islamic School Award 🏅',
+                'description': 'Zainussunna Academy received the "Best Islamic Educational Institution" award for our comprehensive curriculum and academic excellence.',
+                'date': '2023-08-05',
+                'category': 'academic',
+                'is_visible': True,
+                'display_order': 5
+            },
+            {
+                'title': '100% Pass in Hifz Finals',
+                'description': 'All our Hifz students passed their final memorization review with distinction. A testament to our rigorous revision system.',
+                'date': '2023-07-20',
+                'category': 'hifz',
+                'is_visible': True,
+                'display_order': 6
+            },
+            {
+                'title': 'Arabic Language Proficiency',
+                'description': 'Students achieved highest scores in Arabic Language examination conducted by the Arabic Language Authority.',
+                'date': '2023-06-15',
+                'category': 'academic',
+                'is_visible': True,
+                'display_order': 7
+            },
+            {
+                'title': 'Community Service Recognition',
+                'description': 'Our students received recognition for their voluntary community service during Ramadan, serving meals to over 500 families.',
+                'date': '2023-05-01',
+                'category': 'competition',
+                'is_visible': True,
+                'display_order': 8
             },
         ]
         
         for ach_data in achievements:
-            # Remove empty image field before creating
-            ach_create_data = {k: v for k, v in ach_data.items() if v or k != 'image'}
             ach, created = Achievement.objects.get_or_create(
                 title=ach_data['title'],
-                defaults=ach_create_data
+                defaults=ach_data
             )
             status = 'Created' if created else 'Exists'
             self.stdout.write(f'  ✓ {status}: {ach_data["title"]}')
+
+    def create_gallery(self):
+        self.stdout.write('Creating Sample Gallery Items...')
+        
+        gallery_items = [
+            {
+                'title': 'Classroom Session',
+                'caption': 'Students engaged in classical text study',
+                'category': 'classroom',
+                'is_visible': True,
+                'display_order': 1
+            },
+            {
+                'title': 'Campus Building',
+                'caption': 'Main building of Zainussunna Academy',
+                'category': 'campus',
+                'is_visible': True,
+                'display_order': 2
+            },
+            {
+                'title': 'Annual Event 2024',
+                'caption': 'Annual gathering of students and parents',
+                'category': 'events',
+                'is_visible': True,
+                'display_order': 3
+            },
+            {
+                'title': 'Graduation Ceremony',
+                'caption': 'Celebrating our graduates',
+                'category': 'graduation',
+                'is_visible': True,
+                'display_order': 4
+            },
+        ]
+        
+        for item_data in gallery_items:
+            item, created = GalleryItem.objects.get_or_create(
+                title=item_data['title'],
+                defaults=item_data
+            )
+            status = 'Created' if created else 'Exists'
+            self.stdout.write(f'  ✓ {status}: {item_data["title"]}')
+    
+    def create_whatsapp_config(self):
+        self.stdout.write('Creating WhatsApp Configuration...')
+        
+        # Create default WhatsApp config if none exists
+        if not WhatsAppConfig.objects.exists():
+            WhatsAppConfig.objects.create(
+                phone_number='+919846567890',
+                is_active=True,
+                admission_message_template="🎓 *New Admission Application*\n\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    "📋 *Application Details:*\n"
+                    "• Name: {student_name}\n"
+                    "• Program: {program_name}\n"
+                    "• Class: {standard}\n"
+                    "• Phone: {phone}\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    "🏫 *Guardian Info:*\n"
+                    "• Name: {guardian_name}\n"
+                    "• Relation: {guardian_relation}\n"
+                    "• Phone: {guardian_phone}\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    "✨ *Zainussunna Academy*\n"
+                    "Excellence in Islamic Education",
+                success_message_template="✅ *Admission Submitted Successfully!*\n\n"
+                    "🕌 *Zainussunna Academy*\n\n"
+                    "Dear {student_name},\n\n"
+                    "🎉 Your application for *{program_name}* has been submitted successfully!\n\n"
+                    "📝 *Application Number:* {application_number}\n\n"
+                    "Our team will contact you shortly. Please keep your phone number ready.\n\n"
+                    "✨ *JazakAllah Khair* for choosing Zainussunna Academy!",
+                notify_on_submission=True,
+                send_confirmation=True
+            )
+            self.stdout.write('  ✓ Created WhatsApp configuration')
+        else:
+            self.stdout.write('  ✓ WhatsApp configuration already exists')
+

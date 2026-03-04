@@ -197,19 +197,8 @@ class AchievementAdmin(admin.ModelAdmin):
     import os
 
 def image_preview(self, obj):
-    if not obj or not obj.image:
-        return '-'
-
-    try:
-        if obj.image and hasattr(obj.image, 'path') and os.path.exists(obj.image.path):
-            return format_html(
-                '<img src="{}" style="width: 50px; height: auto; border-radius: 4px;" />',
-                obj.image.url
-            )
-        return '-'
-    except Exception:
-        return '-'
-    image_preview.short_description = 'Image'
+    return "-"
+image_preview.short_description = "Image"
 
 
 @admin.register(GalleryItem)
@@ -222,19 +211,8 @@ class GalleryItemAdmin(admin.ModelAdmin):
     import os
 
 def image_preview(self, obj):
-    if not obj or not obj.image:
-        return '-'
-
-    try:
-        if obj.image and hasattr(obj.image, 'path') and os.path.exists(obj.image.path):
-            return format_html(
-                '<img src="{}" style="width: 50px; height: auto; border-radius: 4px;" />',
-                obj.image.url
-            )
-        return '-'
-    except Exception:
-        return '-'
-    image_preview.short_description = 'Preview'
+    return "-"
+image_preview.short_description = "Preview"
 
 
 @admin.register(Faculty)

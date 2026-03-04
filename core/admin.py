@@ -194,15 +194,20 @@ class AchievementAdmin(admin.ModelAdmin):
     search_fields = ['title', 'description']
     ordering = ['-date', '-display_order']
     
-    def image_preview(self, obj):
-        if obj and obj.image:
-            try:
-                return format_html(
-                    '<img src="{}" style="width: 50px; height: auto; border-radius: 4px;" />',
-                    obj.image.url
-                )
-            except Exception:
-                return '-'
+    import os
+
+def image_preview(self, obj):
+    if not obj or not obj.image:
+        return '-'
+
+    try:
+        if obj.image and hasattr(obj.image, 'path') and os.path.exists(obj.image.path):
+            return format_html(
+                '<img src="{}" style="width: 50px; height: auto; border-radius: 4px;" />',
+                obj.image.url
+            )
+        return '-'
+    except Exception:
         return '-'
     image_preview.short_description = 'Image'
 
@@ -214,15 +219,20 @@ class GalleryItemAdmin(admin.ModelAdmin):
     search_fields = ['title', 'caption']
     ordering = ['-display_order']
     
-    def image_preview(self, obj):
-        if obj and obj.image:
-            try:
-                return format_html(
-                    '<img src="{}" style="width: 100px; height: auto; border-radius: 4px;" />',
-                    obj.image.url
-                )
-            except Exception:
-                return '-'
+    import os
+
+def image_preview(self, obj):
+    if not obj or not obj.image:
+        return '-'
+
+    try:
+        if obj.image and hasattr(obj.image, 'path') and os.path.exists(obj.image.path):
+            return format_html(
+                '<img src="{}" style="width: 50px; height: auto; border-radius: 4px;" />',
+                obj.image.url
+            )
+        return '-'
+    except Exception:
         return '-'
     image_preview.short_description = 'Preview'
 

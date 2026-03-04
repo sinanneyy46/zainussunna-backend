@@ -1,0 +1,149 @@
+{% extends "admin/base.html" %} {% load i18n static %} {% block extrahead %}
+<style>
+  /* Zainussunna Academy Custom Admin Theme */
+  :root {
+    --zain-primary: #1a5f2a;
+    --zain-secondary: #2d8a47;
+    --zain-light: #e8f5e9;
+    --zain-dark: #0d3d16;
+  }
+
+  /* Header Customization */
+  #header {
+    background-color: var(--zain-primary) !important;
+    color: white !important;
+  }
+
+  #header a:link,
+  #header a:visited {
+    color: white !important;
+  }
+
+  /* Branding */
+  #branding h1 {
+    color: white !important;
+    font-weight: 600 !important;
+  }
+
+  /* User Tools */
+  #user-tools {
+    color: white !important;
+  }
+
+  #user-tools a:link,
+  #user-tools a:visited {
+    color: var(--zain-light) !important;
+    text-decoration: none;
+  }
+
+  #user-tools a:hover {
+    color: white !important;
+    text-decoration: underline;
+  }
+
+  /* Module Headers */
+  .module h2,
+  .module caption {
+    background-color: var(--zain-primary) !important;
+  }
+
+  /* Buttons */
+  .button,
+  input[type="submit"],
+  .submit-row input {
+    background-color: var(--zain-primary) !important;
+    border-color: var(--zain-dark) !important;
+  }
+
+  .button:hover,
+  input[type="submit"]:hover {
+    background-color: var(--zain-secondary) !important;
+  }
+
+  /* Links */
+  a:link,
+  a:visited {
+    color: var(--zain-primary) !important;
+  }
+
+  a:hover {
+    color: var(--zain-secondary) !important;
+  }
+
+  /* Sidebar */
+  #changelist-filter {
+    border-left: 3px solid var(--zain-primary) !important;
+  }
+
+  /* Selected row in list */
+  .row1.selected,
+  .row2.selected {
+    background-color: var(--zain-light) !important;
+  }
+
+  /* Login page customization */
+  body.login {
+    background: linear-gradient(
+      135deg,
+      var(--zain-dark) 0%,
+      var(--zain-primary) 100%
+    );
+  }
+
+  .login #container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .login #header {
+    background: var(--zain-primary) !important;
+    border-radius: 8px 8px 0 0;
+  }
+
+  /* Footer */
+  #footer {
+    background-color: var(--zain-light);
+    color: var(--zain-dark);
+  }
+</style>
+{% endblock %} {% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}">
+    <span>🕌</span>
+    Zainussunna Academy
+  </a>
+</h1>
+{% endblock %} {% block welcome-msg %} {% translate 'Welcome,' %}
+<strong>{% firstof user.get_short_name user.get_username %}</strong>
+{% endblock %} {% block userlinks %} {% if site_url %}
+<a href="{{ site_url }}">{% translate 'View Site' %}</a>
+/ {% endif %} {% if user.is_active and user.is_staff %} {% url
+'django-admindocs-docroot' as docsroot %} {% if docsroot %}
+<a href="{{ docsroot }}">{% translate 'Docs' %}</a>
+/ {% endif %} {% endif %} {% if user.has_usable_password %}
+<a href="{% url 'admin:password_change' %}">{% translate 'Password' %}</a>
+/ {% endif %}
+<form
+  id="logout-form"
+  method="post"
+  action="{% url 'admin:logout' %}"
+  style="display: inline"
+>
+  {% csrf_token %}
+  <button
+    type="submit"
+    style="
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 0;
+      font: inherit;
+      text-decoration: underline;
+    "
+  >
+    {% translate 'Log out' %}
+  </button>
+</form>
+{% endblock %}

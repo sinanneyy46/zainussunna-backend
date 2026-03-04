@@ -193,12 +193,10 @@ class AchievementAdmin(admin.ModelAdmin):
     list_filter = ['is_visible', 'date']
     search_fields = ['title', 'description']
     ordering = ['-date', '-display_order']
-    
-    import os
 
-def image_preview(self, obj):
-    return "-"
-image_preview.short_description = "Image"
+    def image_preview(self, obj):
+        return "-"
+    image_preview.short_description = "Image"
 
 
 @admin.register(GalleryItem)
@@ -207,12 +205,10 @@ class GalleryItemAdmin(admin.ModelAdmin):
     list_filter = ['is_visible', 'date_taken']
     search_fields = ['title', 'caption']
     ordering = ['-display_order']
-    
-    import os
 
-def image_preview(self, obj):
-    return "-"
-image_preview.short_description = "Preview"
+    def image_preview(self, obj):
+        return "-"
+    image_preview.short_description = "Preview"
 
 
 @admin.register(Faculty)

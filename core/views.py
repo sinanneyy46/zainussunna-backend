@@ -2,15 +2,21 @@
 Views for Academic Admission System
 RESTful API with state machine enforcement and schema generation.
 """
+import logging
 from rest_framework import viewsets, status, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from django.db import transaction
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
 from io import BytesIO
 import urllib.parse
+
+# Get logger for this module
+logger = logging.getLogger(__name__)
 
 from .models import (
     Program, ProgramField, Admission, AdmissionState,
@@ -74,8 +80,24 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     """
     Admission API - State machine controlled.
     Frontend cannot skip, jump, or override steps.
+    
+    Public (unauthenticated) users can CREATE new admissions.
+    Authenticated users can list, retrieve, update, and manage admissions.
     """
-    queryset = Admission.objects.all()
+    queryset = Admission.objects.select_related('program').all()
+    # Enable both JSON and multipart requests for file uploads and JSON data
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+    def get_permissions(self):
+        """
+        Allow public (unauthenticated) users to create and submit admissions.
+        This enables the public admission form to work without login.
+        Require authentication for admin operations (list, retrieve, update, delete).
+        """
+        # Allow public access for the public admission submission flow
+        if self.action in ['create', 'complete_step', 'submit', 'status']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
     
     def get_serializer_class(self):
         if self.action == 'list':
@@ -88,7 +110,7 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Filter admissions based on user role"""
-        queryset = Admission.objects.all()
+        queryset = Admission.objects.select_related('program').all()
         
         # Filter by state
         state = self.request.query_params.get('state')
@@ -121,29 +143,98 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         """Create new admission with step 1 data"""
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        admission = serializer.save()
-        
-        # Return full admission data
-        output_serializer = AdmissionDetailSerializer(admission)
-        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            admission = serializer.save()
+            
+            # Log admission creation
+            logger.info(
+                f"Admission created: {admission.application_number}, "
+                f"program={admission.program.name if admission.program else 'N/A'}, "
+                f"step={admission.current_step}"
+            )
+            
+            # Return full admission data
+            output_serializer = AdmissionDetailSerializer(admission)
+            return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            import traceback
+            print(f"Error creating admission: {e}")
+            traceback.print_exc()
+            return Response(
+                {'error': str(e), 'detail': 'Failed to create admission'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     @action(detail=True, methods=['post'])
     def complete_step(self, request, pk=None):
         """Complete current step and advance"""
         admission = self.get_object()
         
+        # Debug: Log the admission state
+        logger.debug(
+            f"complete_step: admission {admission.id}, "
+            f"current_step={admission.current_step}, "
+            f"completed_steps={admission.completed_steps}"
+        )
+        
         # Check if admission is in draft state
         if admission.state != AdmissionState.DRAFT:
+            logger.warning(
+                f"Step completion blocked: admission {admission.application_number} "
+                f"is not in draft state (state={admission.state})"
+            )
             return Response(
                 {'error': 'Cannot modify submitted admission'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        serializer = self.get_serializer(admission, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        # TASK 4: Prevent Step Bypass - Validate step matches current_step
+        # Get the expected next step
+        completed_steps = admission.completed_steps if isinstance(admission.completed_steps, list) else []
+        expected_next_step = 1
+        for s in [1, 2, 3]:
+            if s not in completed_steps:
+                expected_next_step = s
+                break
+        
+        if admission.current_step != expected_next_step:
+            logger.warning(
+                f"Step bypass attempt blocked: admission {admission.application_number}, "
+                f"expected step {expected_next_step}, got {admission.current_step}"
+            )
+            return Response(
+                {'error': f'Cannot complete step {admission.current_step}. Please complete steps in order.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Explicitly use AdmissionStepSerializer
+        serializer = AdmissionStepSerializer(admission, data=request.data)
+        
+        # Debug: Log what's being validated
+        print(f"DEBUG complete_step: request.data = {request.data}")
+        
+        # Check validation and return detailed errors if fails
+        if not serializer.is_valid():
+            print(f"DEBUG complete_step: validation errors = {serializer.errors}")
+            return Response(
+                {'error': 'Validation failed', 'details': serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # TASK 6: Transaction Safety - Wrap step completion in atomic transaction
+        with transaction.atomic():
+            # Lock the admission row to prevent concurrent modifications
+            admission = Admission.objects.select_for_update().get(pk=admission.pk)
+            serializer.save()
+            
+            # Log step completion
+            logger.info(
+                f"Step completed: admission {admission.application_number}, "
+                f"step={admission.current_step - 1}, "
+                f"completed_steps={admission.completed_steps}"
+            )
         
         # Return updated admission
         output_serializer = AdmissionDetailSerializer(admission)
@@ -151,17 +242,81 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
-        """Submit the admission - final submission"""
+        """
+        Submit the admission - final submission.
+        
+        Validations:
+        - State must be "draft"
+        - All steps [1,2,3] must be completed
+        - Uses transaction for safety
+        - Returns proper JSON response
+        """
+        # Log submission attempt
+        logger.info(f"Submission attempt for admission pk={pk}")
+        
         admission = self.get_object()
         
-        # Validate all data is present
-        serializer = AdmissionSubmitSerializer(admission)
-        serializer.is_valid(raise_exception=True)
+        # TASK 5: Prevent Double Submission - Check state is draft
+        if admission.state != AdmissionState.DRAFT:
+            logger.warning(
+                f"Submission blocked: admission {admission.application_number} "
+                f"already submitted (state={admission.state})"
+            )
+            return Response(
+                {"error": "Admission already submitted"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
-        admission = serializer.submit()
+        # TASK 1: Validate all steps are completed
+        completed_steps = admission.completed_steps if isinstance(admission.completed_steps, list) else []
+        required_steps = {1, 2, 3}
+        completed_set = set(completed_steps)
         
-        output_serializer = AdmissionDetailSerializer(admission)
-        return Response(output_serializer.data)
+        if completed_set != required_steps:
+            logger.warning(
+                f"Submission blocked: admission {admission.application_number} "
+                f"has not completed all steps (completed={completed_steps})"
+            )
+            return Response(
+                {"error": "All steps must be completed before submission"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate using serializer for final validation (age, email, etc.)
+        # Pass empty data dict since we're validating the existing instance
+        serializer = AdmissionSubmitSerializer(admission, data={})
+        if not serializer.is_valid():
+            errors = serializer.errors
+            logger.warning(
+                f"Submission validation failed: admission {admission.application_number}, "
+                f"errors={errors}"
+            )
+            return Response(
+                {"error": "Submission validation failed", "details": errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # TASK 6: Transaction Safety - Wrap submission in atomic transaction
+        with transaction.atomic():
+            # Lock the admission row
+            admission = Admission.objects.select_for_update().get(pk=admission.pk)
+            
+            # Perform submission
+            admission.submit()
+            admission.save()
+            
+            # Log successful submission
+            logger.info(
+                f"Admission submitted successfully: {admission.application_number}, "
+                f"state={admission.state}"
+            )
+        
+        # Return proper JSON response
+        return Response({
+            "status": "submitted",
+            "application_number": admission.application_number,
+            "state": admission.state
+        })
     
     @action(detail=True, methods=['get'])
     def status(self, request, pk=None):
@@ -561,8 +716,12 @@ class WhatsAppConfigViewSet(viewsets.ModelViewSet):
     serializer_class = WhatsAppConfigSerializer
     
     def get_permissions(self):
-        """Allow public read, require auth for write"""
-        if self.action in ['list', 'retrieve']:
+        """
+        Allow public read and message generation.
+        Require authentication for write operations.
+        """
+        # Allow public access for reading and generating WhatsApp messages
+        if self.action in ['list', 'retrieve', 'generate_message', 'active']:
             return []
         return [IsAuthenticated()]
     
@@ -637,5 +796,4 @@ class WhatsAppConfigViewSet(viewsets.ModelViewSet):
             'whatsapp_url': whatsapp_url,
             'phone_number': config.phone_number
         })
-
 

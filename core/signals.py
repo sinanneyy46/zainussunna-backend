@@ -68,11 +68,24 @@ def admission_post_save(sender, instance, created, **kwargs):
     
     # Submission tracking
     if created or (old_state == 'draft' and instance.state == 'submitted'):
+        # Get program name safely - handle case where program might be a UUID or not loaded
+        program_name = None
+        if instance.program_id:
+            try:
+                program_name = instance.program.name
+            except AttributeError:
+                # If program is just an ID (not loaded), try to get it
+                from .models import Program
+                try:
+                    program_name = Program.objects.get(pk=instance.program_id).name
+                except Program.DoesNotExist:
+                    program_name = None
+        
         AnalyticEvent.objects.create(
             category='conversion',
             event_data={
                 'event': 'submission',
-                'program': instance.program.name if instance.program else None
+                'program': program_name
             },
             admission=instance
         )

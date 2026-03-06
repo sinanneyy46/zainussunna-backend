@@ -3,7 +3,7 @@ Management command to initialize the admission system with sample data.
 Run: python manage.py init_system
 """
 from django.core.management.base import BaseCommand
-from core.models import Program, ProgramField, ContentPage, Achievement, GalleryItem, WhatsAppConfig
+from core.models import Program, ProgramField, ContentPage, Achievement, GalleryItem, WhatsAppConfig, Faculty
 
 
 class Command(BaseCommand):
@@ -540,4 +540,118 @@ class Command(BaseCommand):
             self.stdout.write('  ✓ Created WhatsApp configuration')
         else:
             self.stdout.write('  ✓ WhatsApp configuration already exists')
+        
+        # Create Faculty Members
+        self.create_faculty()
+        
+        # Create Legal Pages
+        self.create_legal_pages()
+    
+    def create_faculty(self):
+        self.stdout.write('Creating Faculty Members...')
+        
+        faculty_members = [
+            {
+                'name': 'Zabair Sa-adi Al-Arshadi',
+                'role': 'Director',
+                'qualification': 'M.A. Islamic Studies, Al-Azhar University',
+                'bio': 'A renowned scholar with over 20 years of experience in Islamic education. Dedicated to preserving classical Islamic scholarship.',
+                'display_order': 1
+            },
+            {
+                'name': 'Shihab Rahmani',
+                'role': 'Asst. Instructor - Integrated Shareea',
+                'qualification': 'Diploma in Islamic Theology',
+                'bio': 'Specializes in teaching Fiqh and Aqeedah with a focus on classical texts.',
+                'display_order': 2
+            },
+            {
+                'name': 'Hafiz Abdul Nasar Latheefi',
+                'role': 'Lead Instructor - Quranic Studies',
+                'qualification': 'Hifz-ul-Quran, Tajweed Certification',
+                'bio': 'An experienced Huffaz with expertise in Quran memorization and Tajweed.',
+                'display_order': 3
+            },
+            {
+                'name': 'Muhammad Ali K',
+                'role': 'Arabic Language Instructor',
+                'qualification': 'M.A. Arabic, University of Calicut',
+                'bio': 'Fluent in Arabic with expertise in classical Arabic grammar and literature.',
+                'display_order': 4
+            },
+            {
+                'name': 'Dr. Fatima Beevi',
+                'role': 'Islamic History Instructor',
+                'qualification': 'Ph.D. in Islamic History',
+                'bio': 'Specializes in Seerah and Islamic History with research publications.',
+                'display_order': 5
+            },
+            {
+                'name': 'Ahmad bin Abdulaziz',
+                'role': 'Hadith Studies Instructor',
+                'qualification': 'Shahadat al-Aalamiyah in Hadith',
+                'bio': 'Memorized multiple books of Hadith and specializes in Narrations.',
+                'display_order': 6
+            },
+        ]
+        
+        for faculty_data in faculty_members:
+            faculty, created = Faculty.objects.get_or_create(
+                name=faculty_data['name'],
+                defaults={
+                    'role': faculty_data['role'],
+                    'qualification': faculty_data['qualification'],
+                    'bio': faculty_data['bio'],
+                    'display_order': faculty_data['display_order'],
+                    'is_active': True
+                }
+            )
+            status = 'Created' if created else 'Exists'
+            self.stdout.write(f'  ✓ {status}: {faculty_data["name"]}')
+    
+    def create_legal_pages(self):
+        self.stdout.write('Creating Legal Pages...')
+        
+        legal_pages = [
+            {
+                'slug': 'privacy-policy',
+                'title': 'Privacy Policy',
+                'is_published': True,
+                'content_blocks': [
+                    {'type': 'text', 'order': 1, 'data': {'content': '<h1>Privacy Policy</h1><p>At Zainussunna Academy, we are committed to protecting your privacy and ensuring the security of your personal information.</p><h2>Information We Collect</h2><p>We collect personal information that you provide to us, including but not limited to:</p><ul><li>Name and contact information</li><li>Educational background</li><li>Guardian/parent details</li><li>Application materials</li></ul><h2>How We Use Your Information</h2><p>The information collected is used solely for:</p><ul><li>Processing admission applications</li><li>Communicating with students and guardians</li><li>Maintaining academic records</li><li>Improving our services</li></ul><h2>Data Protection</h2><p>We implement appropriate security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.</p><h2>Contact Us</h2><p>If you have any questions about this Privacy Policy, please contact us.</p>'}}
+                ]
+            },
+            {
+                'slug': 'terms-conditions',
+                'title': 'Terms & Conditions',
+                'is_published': True,
+                'content_blocks': [
+                    {'type': 'text', 'order': 1, 'data': {'content': '<h1>Terms & Conditions</h1><p>Welcome to Zainussunna Academy. By accessing our website and services, you agree to be bound by these terms and conditions.</p><h2>Admission Terms</h2><ul><li>All admissions are subject to verification of documents</li><li>The academy reserves the right to reject applications</li><li>Students must adhere to the academy code of conduct</li><li>Regular attendance is mandatory</li></ul><h2>Academic Policies</h2><ul><li>Students must maintain academic integrity</li><li>Disciplinary actions may be taken for violations</li><li>Progress reports will be shared with guardians</li></ul><h2>Payment Terms</h2><p>The academy operates on a donation-based system. Contributions are voluntary but appreciated to support our mission.</p><h2>Modification of Terms</h2><p>We reserve the right to modify these terms at any time. Continued use of our services constitutes acceptance of any changes.</p>'}}
+                ]
+            },
+            {
+                'slug': 'refund-policy',
+                'title': 'Refund Policy',
+                'is_published': True,
+                'content_blocks': [
+                    {'type': 'text', 'order': 1, 'data': {'content': '<h1>Refund Policy</h1><p>At Zainussunna Academy, we strive to maintain transparency in all financial matters.</p><h2>Donation-Based System</h2><p>Our academy operates on a donation-based system. All contributions are voluntary and used to support the educational mission of the academy.</p><h2>No Fee Refunds</h2><p>Since we do not charge fixed fees for education, there are no fee refunds applicable.</p><h2>Donation Requests</h2><p>If you have made a donation and wish to request a refund, please contact us within 7 days of the transaction. Refunds will be processed at the academy discretion.</p><h2>Contact</h2><p>For donation refund requests, please contact the administration office.</p>'}}
+                ]
+            },
+            {
+                'slug': 'shipping-policy',
+                'title': 'Shipping Policy',
+                'is_published': True,
+                'content_blocks': [
+                    {'type': 'text', 'order': 1, 'data': {'content': '<h1>Shipping Policy</h1><p>Zainussunna Academy is an offline educational institution.</p><h2>Physical Location</h2><p>All our programs are conducted at our campus location. We do not ship any physical products.</p><h2>Online Resources</h2><p>Some educational materials may be shared digitally through our learning management system. These are provided at no additional cost to enrolled students.</p><h2>No Physical Shipping</h2><p>Please note that we do not offer shipping of any physical goods, certificates, or documents. All certificates and documents are distributed in person at the campus.</p><h2>Contact</h2><p>For any queries regarding our programs, please contact us directly.</p>'}}
+                ]
+            },
+        ]
+        
+        for page_data in legal_pages:
+            page, created = ContentPage.objects.get_or_create(
+                slug=page_data['slug'],
+                defaults=page_data
+            )
+            status = 'Created' if created else 'Exists'
+            self.stdout.write(f'  ✓ {status}: {page_data["title"]}')
 

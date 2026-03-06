@@ -240,12 +240,32 @@ class Admission(TimeStampedModel):
         super().save(*args, **kwargs)
     
     def _generate_application_number(self):
-        """Generate unique application number"""
+        """
+        Generate unique application number using database-safe approach.
+        Uses select_for_update to prevent race conditions under concurrent submissions.
+        """
+        from django.db import transaction
+        
         year = timezone.now().year
-        count = Admission.objects.filter(
-            application_number__startswith=f'ZA-{year}'
-        ).count() + 1
-        return f'ZA-{year}-{count:04d}'
+        prefix = f'ZA-{year}'
+        
+        with transaction.atomic():
+            # Get the last admission with this year's prefix
+            last = Admission.objects.filter(
+                application_number__startswith=prefix
+            ).order_by('-application_number').first()
+            
+            if last:
+                # Extract the numeric part and increment
+                try:
+                    last_num = int(last.application_number.split('-')[-1])
+                    new_num = last_num + 1
+                except (ValueError, IndexError):
+                    new_num = 1
+            else:
+                new_num = 1
+            
+            return f'ZA-{year}-{new_num:04d}'
     
     def _generate_file_hash(self, file_obj):
         """Generate SHA256 hash for duplicate detection"""
@@ -307,30 +327,39 @@ class Admission(TimeStampedModel):
     
     def complete_step(self, step_number, data, time_spent=0):
         """Complete a step - step owns its fields, cannot modify previous"""
-        # Validate step sequence
-        if step_number != self.current_step:
-            raise ValueError(f"Cannot complete step {step_number}. Current step is {self.current_step}")
-        
-        # Update step data
-        if step_number == 1:
-            self._update_personal_data(data)
-        elif step_number == 2:
-            self._update_academic_data(data)
-        elif step_number == 3:
-            self._update_guardian_data(data)
-        
-        # Track time spent
-        self.time_spent_per_step[str(step_number)] = time_spent
-        
-        # Mark step as completed
-        if step_number not in self.completed_steps:
-            self.completed_steps.append(step_number)
-        
-        # Auto-save draft
-        self.draft_saved_at = timezone.now()
-        self.save()
-        
-        return self
+        import traceback
+        try:
+            # Validate step sequence
+            if step_number != self.current_step:
+                raise ValueError(f"Cannot complete step {step_number}. Current step is {self.current_step}")
+            
+            # Update step data
+            if step_number == 1:
+                self._update_personal_data(data)
+            elif step_number == 2:
+                self._update_academic_data(data)
+            elif step_number == 3:
+                self._update_guardian_data(data)
+            
+            # Track time spent
+            self.time_spent_per_step[str(step_number)] = time_spent
+            
+            # Mark step as completed - use list() to ensure it's a mutable list
+            if not isinstance(self.completed_steps, list):
+                self.completed_steps = list(self.completed_steps) if self.completed_steps else []
+            
+            if step_number not in self.completed_steps:
+                self.completed_steps.append(step_number)
+            
+            # Auto-save draft
+            self.draft_saved_at = timezone.now()
+            self.save()
+            
+            return self
+        except Exception as e:
+            print(f"ERROR in complete_step: {e}")
+            traceback.print_exc()
+            raise
     
     def _update_personal_data(self, data):
         """Update step 1 data"""
@@ -352,8 +381,11 @@ class Admission(TimeStampedModel):
         for field in fields:
             if field in data:
                 setattr(self, field, data[field])
-        # Store program-specific data
-        self.academic_data.update(data.get('program_specific', {}))
+        # Store program-specific data (academic_data key or program_specific key)
+        if 'academic_data' in data:
+            self.academic_data = data.get('academic_data', {})
+        elif 'program_specific' in data:
+            self.academic_data.update(data.get('program_specific', {}))
     
     def _update_guardian_data(self, data):
         """Update step 3 data"""

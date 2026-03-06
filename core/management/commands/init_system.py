@@ -510,30 +510,30 @@ class Command(BaseCommand):
         # Create default WhatsApp config if none exists
         if not WhatsAppConfig.objects.exists():
             WhatsAppConfig.objects.create(
-                phone_number='+919846567890',
+                phone_number='++919188441614',
                 is_active=True,
-                admission_message_template="🎓 *New Admission Application*\n\n"
+                admission_message_template="*New Admission Application*\n\n"
                     "━━━━━━━━━━━━━━━━━━━━\n"
-                    "📋 *Application Details:*\n"
-                    "• Name: {student_name}\n"
-                    "• Program: {program_name}\n"
-                    "• Class: {standard}\n"
-                    "• Phone: {phone}\n"
+                    "*Application Details:*\n"
+                    "- Name: *{student_name}*\n"
+                    "- Program: {program_name}\n"
+                    "- Class: {standard}\n"
+                    "- Phone: {phone}\n"
                     "━━━━━━━━━━━━━━━━━━━━\n"
-                    "🏫 *Guardian Info:*\n"
-                    "• Name: {guardian_name}\n"
-                    "• Relation: {guardian_relation}\n"
-                    "• Phone: {guardian_phone}\n"
+                    "*Guardian Info:*\n"
+                    "- Name: {guardian_name}\n"
+                    "- Relation: {guardian_relation}\n"
+                    "- Phone: {guardian_phone}\n"
                     "━━━━━━━━━━━━━━━━━━━━\n"
-                    "✨ *Zainussunna Academy*\n"
+                    "*Zainussunna Academy*\n"
                     "Excellence in Islamic Education",
-                success_message_template="✅ *Admission Submitted Successfully!*\n\n"
-                    "🕌 *Zainussunna Academy*\n\n"
+                success_message_template="*Admission Submitted Successfully!*\n\n"
+                    "*Zainussunna Academy*\n\n"
                     "Dear {student_name},\n\n"
-                    "🎉 Your application for *{program_name}* has been submitted successfully!\n\n"
-                    "📝 *Application Number:* {application_number}\n\n"
+                    "Your application for *{program_name}* has been submitted successfully!\n\n"
+                    "*Application Number:* {application_number}\n\n"
                     "Our team will contact you shortly. Please keep your phone number ready.\n\n"
-                    "✨ *JazakAllah Khair* for choosing Zainussunna Academy!",
+                    "*JazakAllah Khair* for choosing Zainussunna Academy!",
                 notify_on_submission=True,
                 send_confirmation=True
             )

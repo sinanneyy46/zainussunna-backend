@@ -2,6 +2,7 @@
 URL Configuration for Backend
 """
 from django.contrib import admin
+from core.admin import admin_site
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
@@ -33,6 +34,7 @@ def api_root(request):
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('zainussunna-admin/', admin_site.urls),
     path('api/', api_root),
     path('api/core/', include('core.urls')),
 ]

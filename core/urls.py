@@ -9,7 +9,8 @@ from .views import (
     ProgramViewSet, AdmissionViewSet, InternalNoteViewSet,
     ContentPageViewSet, AchievementViewSet, GalleryViewSet,
     EnquiryViewSet, AnalyticsViewSet, HealthCheckView, FacultyViewSet,
-    AdmissionExportView, WhatsAppConfigViewSet
+    AdmissionExportView, WhatsAppConfigViewSet,
+    DashboardView, VivaSheetView, FullExportView
 )
 
 router = DefaultRouter()
@@ -34,7 +35,17 @@ urlpatterns = [
     # Health check
     path('health/', HealthCheckView.as_view(), name='health_check'),
     
-    # Admissions export
+    # SECTION 1: Dashboard Overview API
+    path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    
+    # SECTION 4: Interview/Viva PDF Sheet
+    path('admissions/<uuid:pk>/viva-sheet/', VivaSheetView.as_view(), name='viva_sheet'),
+    
+    # SECTION 5: Full Data Export
     path('admissions/export/', AdmissionExportView.as_view(), name='admissions_export'),
+    path('admissions/export/full/', FullExportView.as_view(), name='admissions_full_export'),
+    
+    # SECTION 9: Bulk Actions (uses admission viewset)
+    # POST /api/core/admissions/bulk-action/ - handled by AdmissionViewSet
 ]
 

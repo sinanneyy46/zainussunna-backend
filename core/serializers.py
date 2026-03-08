@@ -139,11 +139,13 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
     step = serializers.IntegerField(write_only=True, required=False, default=1)
     step_data = serializers.JSONField(write_only=True, required=False, default=dict)
     time_spent = serializers.IntegerField(write_only=True, required=False, default=0)
+    # Add explicit file field for student photo
+    student_photo = serializers.FileField(write_only=True, required=False)
     
     class Meta:
         model = Admission
         fields = [
-            'program', 'step', 'step_data', 'time_spent'
+            'program', 'step', 'step_data', 'time_spent', 'student_photo'
         ]
     
     def validate_program(self, value):
@@ -177,6 +179,8 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
         step = validated_data.pop('step', 1)
         step_data = validated_data.pop('step_data', {})
         time_spent = validated_data.pop('time_spent', 0)
+        # Get student_photo from validated_data if sent directly
+        student_photo = validated_data.pop('student_photo', None)
         
         # For step 1, extract all required fields from step_data to create the admission
         # The Admission model requires: name, dob, phone, email, address fields
@@ -210,9 +214,8 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
                             pass  # Keep as string if parsing fails
                     admission_data[model_key] = value
         
-        # Extract student photo if present (handle File objects)
-        student_photo = None
-        if isinstance(step_data, dict) and 'student_photo' in step_data:
+        # Extract student photo if present (handle File objects from step_data)
+        if not student_photo and isinstance(step_data, dict) and 'student_photo' in step_data:
             photo = step_data['student_photo']
             if photo and hasattr(photo, 'read'):
                 student_photo = photo
@@ -222,7 +225,7 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
         # created with all the data. We just need to mark step 1 as completed.
         admission = Admission.objects.create(**admission_data)
         
-        # Handle file upload - save again if photo was uploaded
+        # Handle file upload - save if photo was uploaded
         if student_photo:
             admission.student_photo = student_photo
             admission.save()
@@ -254,10 +257,12 @@ class AdmissionStepSerializer(serializers.ModelSerializer):
     """
     step_data = serializers.JSONField(write_only=True)
     time_spent = serializers.IntegerField(write_only=True, required=False, default=0)
+    # Add explicit file fields for achievements
+    achievements_file = serializers.FileField(write_only=True, required=False)
     
     class Meta:
         model = Admission
-        fields = ['step_data', 'time_spent']
+        fields = ['step_data', 'time_spent', 'achievements_file']
     
     def validate_step_data(self, value):
         """Validate step data based on current step"""
@@ -317,6 +322,8 @@ class AdmissionStepSerializer(serializers.ModelSerializer):
         """Complete current step"""
         step_data = validated_data.pop('step_data', {})
         time_spent = validated_data.pop('time_spent', 0)
+        # Get achievements_file from validated_data if sent directly
+        achievements_file = validated_data.pop('achievements_file', None)
         
         current_step = instance.current_step
         
@@ -329,6 +336,10 @@ class AdmissionStepSerializer(serializers.ModelSerializer):
                 instance._update_academic_data(step_data)
             elif current_step == 3:
                 instance._update_guardian_data(step_data)
+            
+            # Handle achievements file upload if present
+            if achievements_file:
+                instance.achievements_file = achievements_file
             
             # Track time spent
             time_dict = dict(instance.time_spent_per_step) if instance.time_spent_per_step else {}

@@ -2,13 +2,56 @@
 Admin Configuration for Academic Admission System
 """
 from django.contrib import admin
+from django.contrib.admin import AdminSite
 from django.utils.html import format_html
 from django.urls import reverse
+from django.db.models import Count
 from .models import (
-    Program, ProgramField, Admission, AdmissionStateLog,
-    AdmissionEvent, InternalNote, ContentPage,
-    Achievement, GalleryItem, Enquiry, AnalyticEvent, Faculty
+    Program, ProgramField, Admission, AdmissionState,
+    AdmissionStateLog, AdmissionEvent, InternalNote, ContentPage,
+    Achievement, GalleryItem, Enquiry, AnalyticEvent, Faculty, WhatsAppConfig
 )
+
+
+class ZainussunnaAdminSite(AdminSite):
+    """Custom admin site with dashboard statistics"""
+    site_header = "Zainussunna Academy Admissions"
+    site_title = "Academy Admissions"
+    index_title = "Dashboard"
+    
+    def index(self, request, extra_context=None):
+        # Get statistics
+        admissions = Admission.objects.all()
+        
+        total = admissions.count()
+        draft = admissions.filter(state=AdmissionState.DRAFT).count()
+        submitted = admissions.filter(state=AdmissionState.SUBMITTED).count()
+        under_review = admissions.filter(state=AdmissionState.UNDER_REVIEW).count()
+        approved = admissions.filter(state=AdmissionState.APPROVED).count()
+        rejected = admissions.filter(state=AdmissionState.REJECTED).count()
+        
+        # Recent applications
+        recent_applications = Admission.objects.select_related('program').order_by('-created_at')[:10]
+        
+        context = {
+            'total': total,
+            'draft': draft,
+            'submitted': submitted,
+            'under_review': under_review,
+            'approved': approved,
+            'rejected': rejected,
+            'recent_applications': recent_applications,
+            'root_path': '/zainussunna-admin/',
+        }
+        
+        if extra_context:
+            context.update(extra_context)
+        
+        return super().index(request, context)
+
+
+# Create custom admin site instance
+admin_site = ZainussunnaAdminSite(name='zainussunna_admin')
 
 
 class ProgramFieldInline(admin.TabularInline):
@@ -26,7 +69,7 @@ class ProgramAdmin(admin.ModelAdmin):
     inlines = [ProgramFieldInline]
 
 
-admin.site.register(Program, ProgramAdmin)
+admin_site.register(Program, ProgramAdmin)
 
 
 class AdmissionStateLogInline(admin.TabularInline):
@@ -152,6 +195,9 @@ class AdmissionAdmin(admin.ModelAdmin):
     reject_admissions.short_description = 'Reject Selected'
 
 
+admin_site.register(Admission, AdmissionAdmin)
+
+
 @admin.register(Enquiry)
 class EnquiryAdmin(admin.ModelAdmin):
     list_display = ['name', 'email', 'status', 'program_interest', 'created_at']
@@ -178,6 +224,9 @@ class EnquiryAdmin(admin.ModelAdmin):
     close_enquiries.short_description = 'Close Selected'
 
 
+admin_site.register(Enquiry, EnquiryAdmin)
+
+
 @admin.register(ContentPage)
 class ContentPageAdmin(admin.ModelAdmin):
     list_display = ['title', 'slug', 'is_published', 'version', 'created_at']
@@ -187,28 +236,29 @@ class ContentPageAdmin(admin.ModelAdmin):
     readonly_fields = ['version', 'created_at', 'updated_at']
 
 
+admin_site.register(ContentPage, ContentPageAdmin)
+
+
 @admin.register(Achievement)
 class AchievementAdmin(admin.ModelAdmin):
-    list_display = ['title', 'image_preview', 'date', 'is_visible', 'display_order', 'created_at']
+    list_display = ['title', 'date', 'is_visible', 'display_order', 'created_at']
     list_filter = ['is_visible', 'date']
     search_fields = ['title', 'description']
     ordering = ['-date', '-display_order']
 
-    def image_preview(self, obj):
-        return "-"
-    image_preview.short_description = "Image"
+
+admin_site.register(Achievement, AchievementAdmin)
 
 
 @admin.register(GalleryItem)
 class GalleryItemAdmin(admin.ModelAdmin):
-    list_display = ['title', 'image_preview', 'date_taken', 'is_visible', 'display_order']
+    list_display = ['title', 'date_taken', 'is_visible', 'display_order']
     list_filter = ['is_visible', 'date_taken']
     search_fields = ['title', 'caption']
     ordering = ['-display_order']
 
-    def image_preview(self, obj):
-        return "-"
-    image_preview.short_description = "Preview"
+
+admin_site.register(GalleryItem, GalleryItemAdmin)
 
 
 @admin.register(Faculty)
@@ -217,4 +267,19 @@ class FacultyAdmin(admin.ModelAdmin):
     list_filter = ['is_active', 'role']
     search_fields = ['name', 'role', 'qualification']
     ordering = ['display_order', 'name']
+
+
+admin_site.register(Faculty, FacultyAdmin)
+
+
+@admin.register(WhatsAppConfig)
+class WhatsAppConfigAdmin(admin.ModelAdmin):
+    list_display = ['phone_number', 'is_active', 'notify_on_submission', 'send_confirmation']
+    list_filter = ['is_active']
+
+
+admin_site.register(WhatsAppConfig, WhatsAppConfigAdmin)
+
+# Note: Models are registered only with custom admin_site above
+# The default admin.site is not used - use /zainussunna-admin/ instead
 

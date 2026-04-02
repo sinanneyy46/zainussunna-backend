@@ -6,32 +6,28 @@ import os
 import logging
 from pathlib import Path
 from datetime import timedelta
+from corsheaders.defaults import default_headers
 
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security settings
-# Get SECRET_KEY - use fallback in development, require in production
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 
 if not SECRET_KEY:
-    # Fallback for local development - NOT for production use!
     SECRET_KEY = 'django-insecure-dev-key-for-local-development-only-change-in-production'
     print("⚠️  WARNING: Using insecure fallback SECRET_KEY. Set DJANGO_SECRET_KEY for production!")
 
-# DEBUG - default to True for local development
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-# ALLOWED_HOSTS - must be set in production
 ALLOWED_HOSTS_ENV = os.environ.get('ALLOWED_HOSTS', '')
 if ALLOWED_HOSTS_ENV:
     ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS_ENV.split(',') if h.strip()]
 else:
-    # Fallback for development
     ALLOWED_HOSTS = [
         "localhost",
         "127.0.0.1",
-        "testserver",  # For Django test client
+        "testserver",
         "zainussunnaacademy.com",
         "www.zainussunnaacademy.com",
         "api.zainussunnaacademy.com",
@@ -39,7 +35,6 @@ else:
         "*.onrender.com",
     ]
 
-# CSRF trusted origins for production
 CSRF_TRUSTED_ORIGINS_ENV = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
 if CSRF_TRUSTED_ORIGINS_ENV:
     CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_ENV.split(',') if origin.strip()]
@@ -105,18 +100,15 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# Database configuration - Auto-detect production vs development
-# Check for PostgreSQL environment variables first (production on Render)
+# Database configuration
 db_url = os.environ.get('DATABASE_URL')
 
 if db_url:
-    # Use PostgreSQL from DATABASE_URL (Render provides this)
     import dj_database_url
     DATABASES = {
         'default': dj_database_url.parse(db_url, conn_max_age=600)
     }
 else:
-    # Check for individual PostgreSQL variables
     db_host = os.environ.get('DB_HOST')
     if db_host:
         DATABASES = {
@@ -130,25 +122,12 @@ else:
             }
         }
     else:
-        # Fallback to SQLite for development
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
                 'NAME': BASE_DIR / 'db.sqlite3',
             }
         }
-
-# Legacy PostgreSQL configuration (commented out - use DATABASE_URL instead)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.environ.get('DB_NAME', 'zainussunna'),
-#         'USER': os.environ.get('DB_USER', 'postgres'),
-#         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-#         'HOST': os.environ.get('DB_HOST', 'localhost'),
-#         'PORT': os.environ.get('DB_PORT', '5432'),
-#     }
-# }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -167,7 +146,6 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-# Point to frontend build static folder (parent of backend)
 STATICFILES_DIRS = []
 
 if os.path.exists(BASE_DIR.parent / 'frontend' / 'build' / 'static'):
@@ -215,7 +193,7 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
 }
 
-# CORS Configuration - Dynamic based on environment
+# CORS Configuration - Allow custom faculty header
 CORS_ALLOWED_ORIGINS_ENV = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 if CORS_ALLOWED_ORIGINS_ENV:
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_ENV.split(',') if origin.strip()]
@@ -223,12 +201,22 @@ else:
     CORS_ALLOWED_ORIGINS = [
         "https://localhost",
         "https://127.0.0.1",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
         "https://zainussunnaacademy.com",
         "https://www.zainussunnaacademy.com",
     ]
 
+# Allow custom headers for faculty authentication
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-faculty-token',  # Custom faculty auth header (required by legacy faculty client)
+]
+
 # Set to True only in development
 CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOW_CREDENTIALS = True
 
 # File upload settings
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
@@ -247,11 +235,6 @@ LOGGING = {
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs/django.log',
             'formatter': 'verbose',
         },
     },
@@ -276,4 +259,3 @@ LOGGING = {
 # Create logs directory
 LOGS_DIR = BASE_DIR / 'logs'
 LOGS_DIR.mkdir(exist_ok=True)
-

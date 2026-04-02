@@ -2,13 +2,15 @@
 Serializers for Academic Admission System
 Handles validation, state transitions, and frontend schema generation.
 """
+from datetime import date
 from rest_framework import serializers
 from django.utils import timezone
 from .models import (
     Program, ProgramField, Admission, AdmissionState,
     AdmissionStateLog, AdmissionEvent, InternalNote,
     ContentPage, Achievement, GalleryItem, Enquiry, AnalyticEvent, Faculty,
-    WhatsAppConfig
+    WhatsAppConfig, Student, Attendance, ExamResult, StudentNote, AcademicClass,
+    Exam, ExamMark
 )
 
 
@@ -386,14 +388,7 @@ class AdmissionSubmitSerializer(serializers.Serializer):
                 'non_field_errors': 'All steps must be completed before submission'
             })
         
-        # Validate age
-        if admission.age_at_submission:
-            min_age = admission.program.min_age
-            max_age = admission.program.max_age
-            if not (min_age <= admission.age_at_submission <= max_age):
-                raise serializers.ValidationError({
-                    'non_field_errors': f'Age must be between {min_age} and {max_age}'
-                })
+        # Age validation removed - accepting students of any age
         
         # Validate email domain
         if admission.email and not admission.email.endswith('@gmail.com'):
@@ -502,8 +497,8 @@ class FacultySerializer(serializers.ModelSerializer):
     class Meta:
         model = Faculty
         fields = [
-            'id', 'name', 'role', 'qualification', 'bio',
-            'photo', 'display_order', 'is_active'
+            'id', 'name', 'role', 'qualification', 'specialization',
+            'bio', 'photo', 'phone', 'display_order', 'status'
         ]
 
 
@@ -514,7 +509,9 @@ class WhatsAppConfigSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'phone_number', 'is_active',
             'admission_message_template', 'success_message_template',
-            'notify_on_submission', 'send_confirmation',
+            'approved_message_template', 'rejected_message_template',
+            'notify_on_submission', 'notify_on_approval', 'notify_on_rejection',
+            'send_confirmation',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -526,3 +523,462 @@ class WhatsAppConfigSerializer(serializers.ModelSerializer):
                 id=self.instance.id if self.instance else None
             ).update(is_active=False)
         return attrs
+
+
+# ==============================================================================
+# STUDENT MANAGEMENT SERIALIZERS
+# ==============================================================================
+
+class StudentNoteSerializer(serializers.ModelSerializer):
+    """Serializer for student notes"""
+    class Meta:
+        model = StudentNote
+        fields = ['id', 'author', 'content', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class AttendanceSerializer(serializers.ModelSerializer):
+    """Serializer for attendance records"""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    
+    class Meta:
+        model = Attendance
+        fields = [
+            'id', 'student', 'student_name', 'date', 'status', 
+            'notes', 'marked_by', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class ExamResultSerializer(serializers.ModelSerializer):
+    """Serializer for exam results"""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    percentage = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ExamResult
+        fields = [
+            'id', 'student', 'student_name', 'exam_name', 'exam_date',
+            'subject', 'marks', 'total_marks', 'grade', 'percentage', 'notes',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+    
+    def get_percentage(self, obj):
+        if obj.marks and obj.total_marks:
+            return round((float(obj.marks) / float(obj.total_marks)) * 100, 1)
+        return None
+
+
+class StudentListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for student lists"""
+    program_name = serializers.CharField(source='program.name', read_only=True)
+    attendance_percentage = serializers.SerializerMethodField()
+    latest_exam = serializers.SerializerMethodField()
+    subjects_studying = serializers.SerializerMethodField()
+    enrolled_classes_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Student
+        fields = [
+            'id', 'student_number', 'name', 'program', 'program_name',
+            'batch', 'student_status', 'class_assigned', 'phone', 'guardian_name', 'status',
+            'attendance_percentage', 'latest_exam', 'subjects_studying', 'enrolled_classes_count', 'enrollment_date'
+        ]
+
+    def get_attendance_percentage(self, obj):
+        return obj.get_attendance_percentage()
+
+    def get_latest_exam(self, obj):
+        exam = obj.get_latest_exam_result()
+        latest_mark = obj.exam_marks.select_related('exam', 'academic_class').order_by(
+            '-exam__exam_date',
+            '-created_at',
+        ).first()
+
+        if latest_mark and (
+            not exam
+            or (
+                latest_mark.exam.exam_date
+                and (
+                    not exam.exam_date
+                    or latest_mark.exam.exam_date >= exam.exam_date
+                )
+            )
+        ):
+            return {
+                'exam_name': latest_mark.exam.name,
+                'subject': latest_mark.academic_class.name,
+                'marks': float(latest_mark.marks) if latest_mark.marks is not None else None,
+                'grade': latest_mark.grade,
+            }
+
+        if exam:
+            return {
+                'exam_name': exam.exam_name,
+                'subject': exam.subject,
+                'marks': float(exam.marks) if exam.marks else None,
+                'grade': exam.grade
+            }
+        return None
+
+    def get_subjects_studying(self, obj):
+        """Get count of subjects the student is studying"""
+        return obj.enrolled_classes.filter(status='ongoing').count()
+    
+    def get_enrolled_classes_count(self, obj):
+        """Get total count of enrolled classes"""
+        return obj.enrolled_classes.count()
+
+
+class StudentDetailSerializer(serializers.ModelSerializer):
+    """Full serializer for student details"""
+    program_name = serializers.CharField(source='program.name', read_only=True)
+    attendance_records = AttendanceSerializer(many=True, read_only=True)
+    exam_results = serializers.SerializerMethodField()
+    notes = StudentNoteSerializer(many=True, read_only=True)
+    attendance_percentage = serializers.SerializerMethodField()
+    attendance_summary = serializers.SerializerMethodField()
+    enrolled_classes = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Student
+        fields = [
+            'id', 'student_number', 'admission',
+
+            # Personal Information
+            'student_photo', 'name', 'dob', 'phone', 'phone_country_code', 'email',
+            'address_house_name', 'address_place', 'address_post_office',
+            'address_pin_code', 'address_state', 'address_district',
+
+            # Guardian Information
+            'guardian_name', 'guardian_relation', 'guardian_phone',
+            'guardian_phone_country_code', 'guardian_email', 'guardian_occupation',
+
+            # Academic Information
+            'program', 'program_name', 'batch', 'student_status',
+            'class_assigned', 'teacher', 'languages_known',
+            'enrollment_date', 'status',
+
+            # Classes/Subjects
+            'enrolled_classes',
+
+            # Attendance & Results
+            'attendance_percentage', 'attendance_summary',
+            'attendance_records', 'exam_results', 'notes',
+
+            # Internal
+            'internal_notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'student_number', 'created_at', 'updated_at']
+    
+    def get_attendance_percentage(self, obj):
+        return obj.get_attendance_percentage()
+    
+    def get_attendance_summary(self, obj):
+        records = obj.attendance_records.all()
+        total = records.count()
+        if total == 0:
+            return {'total': 0, 'present': 0, 'absent': 0, 'leave': 0, 'late': 0}
+
+        return {
+            'total': total,
+            'present': records.filter(status='present').count(),
+            'absent': records.filter(status='absent').count(),
+            'leave': records.filter(status='leave').count(),
+            'late': records.filter(status='late').count(),
+        }
+    
+    def get_enrolled_classes(self, obj):
+        """Get all enrolled classes with their status"""
+        classes = obj.enrolled_classes.all()
+        ongoing = []
+        completed = []
+        for cls in classes:
+            class_data = {
+                'id': str(cls.id),
+                'name': cls.name,
+                'faculty': cls.faculty.name if cls.faculty else None,
+                'status': cls.status
+            }
+            if cls.status == 'ongoing':
+                ongoing.append(class_data)
+            else:
+                completed.append(class_data)
+        return {
+            'ongoing': ongoing,
+            'completed': completed
+        }
+
+    def get_exam_results(self, obj):
+        legacy_results = [
+            {
+                'id': str(exam.id),
+                'exam_name': exam.exam_name,
+                'exam_date': exam.exam_date,
+                'subject': exam.subject,
+                'marks': float(exam.marks) if exam.marks is not None else None,
+                'total_marks': float(exam.total_marks) if exam.total_marks is not None else 100,
+                'grade': exam.grade,
+                'percentage': round((float(exam.marks) / float(exam.total_marks)) * 100, 1)
+                if exam.marks is not None and exam.total_marks
+                else None,
+                'remarks': exam.notes,
+                'class_name': exam.subject,
+            }
+            for exam in obj.exam_results.all()
+        ]
+
+        module_results = [
+            {
+                'id': str(mark.id),
+                'exam_name': mark.exam.name,
+                'exam_date': mark.exam.exam_date,
+                'subject': mark.academic_class.name,
+                'marks': float(mark.marks) if mark.marks is not None else None,
+                'total_marks': 100,
+                'grade': mark.grade,
+                'percentage': mark.percentage,
+                'remarks': mark.remarks,
+                'class_name': mark.academic_class.name,
+            }
+            for mark in obj.exam_marks.select_related('exam', 'academic_class').all()
+        ]
+
+        combined_results = legacy_results + module_results
+        combined_results.sort(
+            key=lambda item: (
+                item.get('exam_date') or date.min,
+                item.get('exam_name') or "",
+            ),
+            reverse=True,
+        )
+        return combined_results
+
+
+class StudentCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating new students"""
+    class Meta:
+        model = Student
+        fields = [
+            # Personal Information
+            'student_photo', 'name', 'dob', 'phone', 'phone_country_code', 'email',
+            'address_house_name', 'address_place', 'address_post_office',
+            'address_pin_code', 'address_state', 'address_district',
+
+            # Guardian Information
+            'guardian_name', 'guardian_relation', 'guardian_phone',
+            'guardian_phone_country_code', 'guardian_email', 'guardian_occupation',
+
+            # Academic Information
+            'program', 'batch', 'student_status', 'class_assigned', 'teacher', 'languages_known',
+            'enrollment_date', 'status'
+        ]
+    
+    def validate_program(self, value):
+        if not value.is_active:
+            raise serializers.ValidationError("Cannot enroll in inactive program")
+        return value
+
+
+# ==============================================================================
+# ACADEMIC CLASS/SUBJECT SERIALIZERS
+# ==============================================================================
+
+class AcademicClassListSerializer(serializers.ModelSerializer):
+    """Serializer for class/subject lists"""
+    faculty_name = serializers.CharField(source='faculty.name', read_only=True)
+    student_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AcademicClass
+        fields = [
+            'id', 'name', 'description', 'faculty', 'faculty_name',
+            'status', 'student_count', 'display_order', 'created_at'
+        ]
+    
+    def get_student_count(self, obj):
+        return obj.get_student_count()
+
+
+class AcademicClassDetailSerializer(serializers.ModelSerializer):
+    """Serializer for class/subject details"""
+    faculty_name = serializers.CharField(source='faculty.name', read_only=True)
+    student_count = serializers.SerializerMethodField()
+    students = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AcademicClass
+        fields = [
+            'id', 'name', 'description', 'faculty', 'faculty_name',
+            'students', 'student_count', 'status', 
+            'display_order', 'created_at', 'updated_at'
+        ]
+    
+    def get_student_count(self, obj):
+        return obj.get_student_count()
+    
+    def get_students(self, obj):
+        """Get list of enrolled students"""
+        students = obj.students.all()
+        return [{
+            'id': str(s.id),
+            'name': s.name,
+            'student_number': s.student_number,
+            'batch': s.batch,
+            'student_status': s.student_status
+        } for s in students]
+
+
+class AcademicClassCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating classes"""
+    class Meta:
+        model = AcademicClass
+        fields = [
+            'name', 'description', 'faculty', 'students', 'status', 'display_order'
+        ]
+
+
+class ExamListSerializer(serializers.ModelSerializer):
+    class_count = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Exam
+        fields = [
+            'id',
+            'name',
+            'exam_date',
+            'description',
+            'status',
+            'class_count',
+            'created_at',
+        ]
+
+    def get_class_count(self, obj):
+        return obj.get_related_classes().count()
+
+    def get_status(self, obj):
+        return obj.get_status()
+
+
+class ExamCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Exam
+        fields = ['id', 'name', 'exam_date', 'description']
+        read_only_fields = ['id']
+
+
+class ExamClassSummarySerializer(serializers.Serializer):
+    class_id = serializers.UUIDField()
+    subject_name = serializers.CharField()
+    faculty = serializers.CharField()
+    student_count = serializers.IntegerField()
+    highest = serializers.FloatField(allow_null=True)
+    lowest = serializers.FloatField(allow_null=True)
+    average = serializers.FloatField(allow_null=True)
+    pass_percentage = serializers.FloatField()
+    marks_entered = serializers.IntegerField()
+
+
+class ExamMarkEntrySerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_number = serializers.CharField(source='student.student_number', read_only=True)
+    class_name = serializers.CharField(source='academic_class.name', read_only=True)
+    exam_name = serializers.CharField(source='exam.name', read_only=True)
+    exam_date = serializers.DateField(source='exam.exam_date', read_only=True)
+    grade = serializers.SerializerMethodField()
+    percentage = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExamMark
+        fields = [
+            'id',
+            'exam',
+            'exam_name',
+            'exam_date',
+            'academic_class',
+            'class_name',
+            'student',
+            'student_name',
+            'student_number',
+            'marks',
+            'remarks',
+            'grade',
+            'percentage',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_grade(self, obj):
+        return obj.grade
+
+    def get_percentage(self, obj):
+        return obj.percentage
+
+
+class ExamDetailSerializer(serializers.ModelSerializer):
+    status = serializers.SerializerMethodField()
+    classes = serializers.SerializerMethodField()
+    summary = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Exam
+        fields = [
+            'id',
+            'name',
+            'exam_date',
+            'description',
+            'status',
+            'summary',
+            'classes',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_status(self, obj):
+        return obj.get_status()
+
+    def get_classes(self, obj):
+        summaries = []
+        for classroom in obj.get_related_classes().select_related('faculty'):
+            marks_qs = obj.mark_entries.filter(
+                academic_class=classroom,
+                marks__isnull=False,
+            )
+            student_count = classroom.students.count()
+            values = [float(mark.marks) for mark in marks_qs if mark.marks is not None]
+            passed = len([value for value in values if value >= 40])
+
+            summaries.append({
+                'class_id': classroom.id,
+                'subject_name': classroom.name,
+                'faculty': classroom.faculty.name if classroom.faculty else '-',
+                'student_count': student_count,
+                'highest': max(values) if values else None,
+                'lowest': min(values) if values else None,
+                'average': round(sum(values) / len(values), 1) if values else None,
+                'pass_percentage': round((passed / len(values)) * 100, 1) if values else 0,
+                'marks_entered': len(values),
+            })
+        return summaries
+
+    def get_summary(self, obj):
+        marks_qs = obj.mark_entries.select_related('student').filter(marks__isnull=False)
+        values = [float(mark.marks) for mark in marks_qs if mark.marks is not None]
+        top_mark = None
+
+        if marks_qs.exists():
+            top_mark = max(marks_qs, key=lambda entry: float(entry.marks or 0))
+
+        return {
+            'total_students': obj.get_total_students(),
+            'overall_average': round(sum(values) / len(values), 1) if values else None,
+            'top_performer': {
+                'student_id': str(top_mark.student.id),
+                'student_name': top_mark.student.name,
+                'marks': float(top_mark.marks),
+                'class_name': top_mark.academic_class.name,
+            } if top_mark else None,
+        }

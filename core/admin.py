@@ -9,7 +9,8 @@ from django.db.models import Count
 from .models import (
     Program, ProgramField, Admission, AdmissionState,
     AdmissionStateLog, AdmissionEvent, InternalNote, ContentPage,
-    Achievement, GalleryItem, Enquiry, AnalyticEvent, Faculty, WhatsAppConfig
+    Achievement, GalleryItem, Enquiry, AnalyticEvent, Faculty, WhatsAppConfig,
+    Student, Attendance, ExamResult, StudentNote, Exam, ExamMark
 )
 
 
@@ -263,8 +264,8 @@ admin_site.register(GalleryItem, GalleryItemAdmin)
 
 @admin.register(Faculty)
 class FacultyAdmin(admin.ModelAdmin):
-    list_display = ['name', 'role', 'qualification', 'is_active', 'display_order']
-    list_filter = ['is_active', 'role']
+    list_display = ['name', 'role', 'qualification', 'status', 'display_order']
+    list_filter = ['status', 'role']
     search_fields = ['name', 'role', 'qualification']
     ordering = ['display_order', 'name']
 
@@ -280,6 +281,74 @@ class WhatsAppConfigAdmin(admin.ModelAdmin):
 
 admin_site.register(WhatsAppConfig, WhatsAppConfigAdmin)
 
+
+# ==============================================================================
+# STUDENT MANAGEMENT ADMINS
+# ==============================================================================
+
+@admin.register(Student)
+class StudentAdmin(admin.ModelAdmin):
+    list_display = ['student_number', 'name', 'program', 'class_assigned', 'status', 'enrollment_date']
+    list_filter = ['status', 'program', 'enrollment_date']
+    search_fields = ['name', 'student_number', 'phone', 'guardian_name']
+    readonly_fields = ['student_number', 'created_at', 'updated_at']
+    ordering = ['-enrollment_date', 'name']
+
+
+admin_site.register(Student, StudentAdmin)
+
+
+@admin.register(Attendance)
+class AttendanceAdmin(admin.ModelAdmin):
+    list_display = ['student', 'date', 'status', 'marked_by']
+    list_filter = ['date', 'status']
+    search_fields = ['student__name', 'student__student_number']
+    ordering = ['-date']
+
+
+admin_site.register(Attendance, AttendanceAdmin)
+
+
+@admin.register(ExamResult)
+class ExamResultAdmin(admin.ModelAdmin):
+    list_display = ['student', 'exam_name', 'subject', 'marks', 'total_marks', 'grade']
+    list_filter = ['exam_name', 'subject']
+    search_fields = ['student__name', 'student__student_number']
+    ordering = ['-exam_date']
+
+
+admin_site.register(ExamResult, ExamResultAdmin)
+
+
+@admin.register(Exam)
+class ExamAdmin(admin.ModelAdmin):
+    list_display = ['name', 'exam_date', 'created_at']
+    search_fields = ['name', 'description']
+    ordering = ['-exam_date', '-created_at']
+
+
+admin_site.register(Exam, ExamAdmin)
+
+
+@admin.register(ExamMark)
+class ExamMarkAdmin(admin.ModelAdmin):
+    list_display = ['exam', 'academic_class', 'student', 'marks']
+    list_filter = ['exam', 'academic_class']
+    search_fields = ['student__name', 'student__student_number', 'exam__name']
+    ordering = ['-exam__exam_date', 'academic_class__name', 'student__name']
+
+
+admin_site.register(ExamMark, ExamMarkAdmin)
+
+
+@admin.register(StudentNote)
+class StudentNoteAdmin(admin.ModelAdmin):
+    list_display = ['student', 'author', 'created_at']
+    search_fields = ['student__name', 'content']
+    ordering = ['-created_at']
+
+
+admin_site.register(StudentNote, StudentNoteAdmin)
+
 # Note: Models are registered only with custom admin_site above
 # The default admin.site is not used - use /zainussunna-admin/ instead
-

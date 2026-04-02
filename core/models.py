@@ -629,20 +629,42 @@ class Faculty(TimeStampedModel):
     """
     Faculty/Staff members for the academy.
     """
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        'auth.User', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        help_text="Linked Django user for login"
+    )
     name = models.CharField(max_length=200)
-    role = models.CharField(max_length=200)
-    qualification = models.CharField(max_length=200, blank=True)
+    role = models.CharField(max_length=200, help_text="e.g., Ustadh, Teacher")
+    qualification = models.CharField(max_length=200, blank=True, help_text="e.g., Alim, Hafiz")
+    specialization = models.CharField(max_length=200, blank=True, help_text="e.g., Arabic Grammar, Fiqh, Quran")
     bio = models.TextField(blank=True)
     photo = models.ImageField(upload_to='faculty/', null=True, blank=True)
+    phone = models.CharField(max_length=20, blank=True, help_text="Contact number")
     display_order = models.PositiveIntegerField(default=0)
-    is_active = models.BooleanField(default=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     
     class Meta:
         ordering = ['display_order', 'name']
     
     def __str__(self):
         return f"{self.name} - {self.role}"
+    
+    def get_user(self):
+        """Get the linked user or fall back to matching by username"""
+        if self.user:
+            return self.user
+        # Fallback: try to find user by matching name
+        from django.contrib.auth.models import User
+        return User.objects.filter(username=self.name).first()
 
 
 class WhatsAppConfig(TimeStampedModel):
@@ -689,8 +711,44 @@ class WhatsAppConfig(TimeStampedModel):
         help_text="Success message sent to student/guardian"
     )
     
+    # Approved/Congratulations message - sent when admission is approved
+    approved_message_template = models.TextField(
+        default="🎉 *Congratulations! Admission Approved!*\n\n"
+                "🕌 *Zainussunna Academy*\n\n"
+                "Dear {student_name},\n\n"
+                "✨ *Alhumdulillah!* Your admission to *{program_name}* has been APPROVED!\n\n"
+                "📋 *Application Number:* {application_number}\n"
+                "🆔 *Student ID:* {student_number}\n\n"
+                "📅 *Next Steps:*\n"
+                "• Please attend the orientation session\n"
+                "• Bring all original documents for verification\n"
+                "• Contact us if you have any questions\n\n"
+                "We look forward to welcoming you!\n\n"
+                "BarakAllah feekum,\n"
+                "✨ *Zainussunna Academy*\n"
+                "Excellence in Islamic Education",
+        help_text="Congratulations message sent when admission is approved"
+    )
+
+    # Rejected message - inspirational quote without student/guardian details
+    rejected_message_template = models.TextField(
+        default="🕌 *Zainussunna Academy*\n\n"
+                "Dear {student_name},\n\n"
+                "We appreciate your interest in Zainussunna Academy.\n\n"
+                "After careful consideration, we regret to inform you that your application could not be processed at this time.\n\n"
+                "🤲 *Remember:*\n"
+                "\"Every setback is a setup for a comeback.\"\n\n"
+                "This is not the end of your journey. Keep pursuing knowledge and righteous deeds. Allah (SWT) has better plans for those who trust in Him.\n\n"
+                "May Allah (SWT) bless you with the best.\n\n"
+                "✨ *Zainussunna Academy*\n"
+                "Excellence in Islamic Education",
+        help_text="Inspirational message for rejected applications"
+    )
+
     # Enable/disable features
     notify_on_submission = models.BooleanField(default=True)
+    notify_on_approval = models.BooleanField(default=True)
+    notify_on_rejection = models.BooleanField(default=True)
     send_confirmation = models.BooleanField(default=True)
     
     class Meta:
@@ -712,6 +770,14 @@ class WhatsAppConfig(TimeStampedModel):
     def format_success_message(self, data):
         """Format the success message with data"""
         return self.success_message_template.format(**data)
+
+    def format_approved_message(self, data):
+        """Format the approved/congratulations message with data"""
+        return self.approved_message_template.format(**data)
+
+    def format_rejected_message(self, data):
+        """Format the rejected message with inspirational quote"""
+        return self.rejected_message_template.format(**data)
 
 
 class AnalyticEvent(TimeStampedModel):
@@ -744,3 +810,390 @@ class AnalyticEvent(TimeStampedModel):
     def __str__(self):
         return f"{self.category} - {self.created_at}"
 
+
+# ==============================================================================
+# STUDENT MANAGEMENT MODELS
+# ==============================================================================
+
+class Student(TimeStampedModel):
+    """
+    Student Model - Separate from Admission.
+    Created when admission is approved or manually added.
+    """
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('graduated', 'Graduated'),
+        ('transferred', 'Transferred'),
+        ('suspended', 'Suspended'),
+    ]
+    
+    # Student Status for academic tracking
+    STUDENT_STATUS_CHOICES = [
+        ('studying', 'Studying'),
+        ('completed', 'Completed'),
+        ('dropped', 'Dropped'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    admission = models.OneToOneField(
+        Admission, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='student_record'
+    )
+    student_number = models.CharField(max_length=20, unique=True, db_index=True)
+    
+    # Personal Information
+    student_photo = models.FileField(upload_to='students/photos/', null=True, blank=True)
+    name = models.CharField(max_length=200)
+    dob = models.DateField(null=True, blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    phone_country_code = models.CharField(max_length=5, default='+91')
+    email = models.EmailField(blank=True)
+    
+    # Address
+    address_house_name = models.CharField(max_length=200, blank=True)
+    address_place = models.CharField(max_length=200, blank=True)
+    address_post_office = models.CharField(max_length=200, blank=True)
+    address_pin_code = models.CharField(max_length=10, blank=True)
+    address_state = models.CharField(max_length=100, blank=True)
+    address_district = models.CharField(max_length=100, blank=True)
+    
+    # Guardian Information
+    guardian_name = models.CharField(max_length=200, blank=True)
+    guardian_relation = models.CharField(max_length=100, blank=True)
+    guardian_phone = models.CharField(max_length=20, blank=True)
+    guardian_phone_country_code = models.CharField(max_length=5, default='+91')
+    guardian_email = models.EmailField(blank=True)
+    guardian_occupation = models.CharField(max_length=200, blank=True)
+    
+    # Academic Information
+    program = models.ForeignKey(
+        Program, 
+        on_delete=models.PROTECT, 
+        related_name='enrolled_students'
+    )
+    batch = models.CharField(max_length=100, blank=True, help_text="e.g., Shareea 2025, Year 1")
+    class_assigned = models.CharField(max_length=100, blank=True, help_text="Class/Batch name")
+    teacher = models.CharField(max_length=200, blank=True, help_text="Assigned teacher")
+    languages_known = models.JSONField(default=list, blank=True)
+    
+    # Enrollment Details
+    enrollment_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    student_status = models.CharField(
+        max_length=20, 
+        choices=STUDENT_STATUS_CHOICES, 
+        default='studying',
+        help_text="Academic status: Studying, Completed, or Dropped"
+    )
+    
+    # Internal notes
+    internal_notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-enrollment_date', 'name']
+        indexes = [
+            models.Index(fields=['status', 'program']),
+            models.Index(fields=['student_number']),
+        ]
+    
+    def __str__(self):
+        return f"{self.student_number} - {self.name}"
+    
+    def save(self, *args, **kwargs):
+        if not self.student_number:
+            self.student_number = self._generate_student_number()
+        if not self.enrollment_date:
+            self.enrollment_date = timezone.now().date()
+        super().save(*args, **kwargs)
+    
+    def _generate_student_number(self):
+        """Generate unique student number"""
+        year = timezone.now().year
+        prefix = f'ST-{year}'
+        
+        last_student = Student.objects.filter(
+            student_number__startswith=prefix
+        ).order_by('-student_number').first()
+        
+        if last_student:
+            try:
+                last_num = int(last_student.student_number.split('-')[-1])
+                new_num = last_num + 1
+            except (ValueError, IndexError):
+                new_num = 1
+        else:
+            new_num = 1
+        
+        return f'{prefix}-{new_num:04d}'
+    
+    def get_attendance_percentage(self):
+        """Calculate attendance percentage"""
+        total = self.attendance_records.count()
+        if total == 0:
+            return None
+        present = self.attendance_records.filter(status='present').count()
+        return round((present / total) * 100, 1)
+    
+    def get_latest_exam_result(self):
+        """Get latest exam result"""
+        return self.exam_results.first()
+
+
+class Attendance(TimeStampedModel):
+    """
+    Attendance Record for Students
+    """
+    STATUS_CHOICES = [
+        ('present', 'Present'),
+        ('absent', 'Absent'),
+        ('leave', 'On Leave'),
+        ('late', 'Late'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='attendance_records')
+    date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='present')
+    notes = models.TextField(blank=True)
+    marked_by = models.CharField(max_length=100, blank=True)
+    
+    class Meta:
+        ordering = ['-date']
+        unique_together = ['student', 'date']
+        indexes = [
+            models.Index(fields=['date', 'student']),
+        ]
+    
+    def __str__(self):
+        return f"{self.student.name} - {self.date} - {self.status}"
+
+
+class ExamResult(TimeStampedModel):
+    """
+    Exam Results for Students
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='exam_results')
+    exam_name = models.CharField(max_length=200)
+    exam_date = models.DateField(null=True, blank=True)
+    subject = models.CharField(max_length=200)
+    marks = models.DecimalField(max_digits=5, decimal_places=2)
+    total_marks = models.DecimalField(max_digits=5, decimal_places=2, default=100)
+    grade = models.CharField(max_length=5, blank=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-exam_date', '-created_at']
+        indexes = [
+            models.Index(fields=['student', 'exam_name']),
+        ]
+    
+    def __str__(self):
+        return f"{self.student.name} - {self.exam_name} - {self.subject}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-calculate grade based on percentage
+        if self.marks and self.total_marks:
+            percentage = (float(self.marks) / float(self.total_marks)) * 100
+            if percentage >= 90:
+                self.grade = 'A+'
+            elif percentage >= 80:
+                self.grade = 'A'
+            elif percentage >= 70:
+                self.grade = 'B+'
+            elif percentage >= 60:
+                self.grade = 'B'
+            elif percentage >= 50:
+                self.grade = 'C'
+            elif percentage >= 40:
+                self.grade = 'D'
+            else:
+                self.grade = 'F'
+        super().save(*args, **kwargs)
+
+
+class Exam(TimeStampedModel):
+    """
+    Exam container model.
+    Exams are created first, then marks are recorded per class and student.
+    """
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('upcoming', 'Upcoming'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200)
+    exam_date = models.DateField()
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-exam_date', '-created_at']
+
+    def __str__(self):
+        return self.name
+
+    def get_related_classes(self):
+        return AcademicClass.objects.filter(
+            status='ongoing',
+        ).order_by('display_order', 'name')
+
+    def get_total_students(self):
+        return sum(classroom.students.count() for classroom in self.get_related_classes())
+
+    def get_status(self):
+        today = timezone.now().date()
+        mark_entries = self.mark_entries.filter(marks__isnull=False)
+
+        if not mark_entries.exists():
+            return 'upcoming' if self.exam_date >= today else 'draft'
+
+        related_classes = list(self.get_related_classes())
+        if not related_classes:
+            return 'draft'
+
+        total_expected = sum(classroom.students.count() for classroom in related_classes)
+        if total_expected == 0:
+            return 'draft'
+
+        completed_count = mark_entries.count()
+        if completed_count >= total_expected:
+            return 'completed'
+
+        return 'in_progress'
+
+
+class ExamMark(TimeStampedModel):
+    """
+    Marks recorded per exam, class, and student.
+    This preserves the structure Exam -> Class -> Student -> Marks.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='mark_entries')
+    academic_class = models.ForeignKey(
+        'AcademicClass',
+        on_delete=models.CASCADE,
+        related_name='exam_marks',
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='exam_marks',
+    )
+    marks = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    remarks = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['exam__exam_date', 'academic_class__display_order', 'student__name']
+        unique_together = ['exam', 'academic_class', 'student']
+        indexes = [
+            models.Index(fields=['exam', 'academic_class']),
+            models.Index(fields=['student', 'exam']),
+        ]
+
+    def __str__(self):
+        return f"{self.exam.name} - {self.academic_class.name} - {self.student.name}"
+
+    @property
+    def percentage(self):
+        if self.marks is None:
+            return None
+        return round(float(self.marks), 1)
+
+    @property
+    def grade(self):
+        if self.marks is None:
+            return ""
+
+        percentage = float(self.marks)
+        if percentage >= 90:
+            return 'A+'
+        if percentage >= 80:
+            return 'A'
+        if percentage >= 70:
+            return 'B+'
+        if percentage >= 60:
+            return 'B'
+        if percentage >= 50:
+            return 'C'
+        if percentage >= 40:
+            return 'D'
+        return 'F'
+
+
+class StudentNote(TimeStampedModel):
+    """
+    Notes for Students - Admin only
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='notes')
+    author = models.CharField(max_length=100)
+    content = models.TextField()
+    is_visible = models.BooleanField(default=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Note for {self.student.name} by {self.author}"
+
+
+# ==============================================================================
+# CLASS/SUBJECT MANAGEMENT MODELS
+# ==============================================================================
+
+class AcademicClass(TimeStampedModel):
+    """
+    Academic Class/Subject Model.
+    Represents subjects being taught in the academy.
+    Each class is taught by a faculty member and has enrolled students.
+    """
+    STATUS_CHOICES = [
+        ('ongoing', 'Ongoing'),
+        ('completed', 'Completed'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200, help_text="Subject/Class name e.g., Arabic Grammar")
+    description = models.TextField(blank=True)
+    faculty = models.ForeignKey(
+        Faculty, 
+        on_delete=models.PROTECT, 
+        related_name='classes_taught',
+        help_text="Faculty member teaching this class"
+    )
+    students = models.ManyToManyField(
+        Student, 
+        related_name='enrolled_classes',
+        blank=True,
+        help_text="Students enrolled in this class"
+    )
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='ongoing',
+        help_text="Class status: Ongoing or Completed"
+    )
+    display_order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ['display_order', 'name']
+    
+    def __str__(self):
+        return f"{self.name} - {self.faculty.name}"
+    
+    def get_student_count(self):
+        """Get number of enrolled students"""
+        return self.students.count()

@@ -5,7 +5,7 @@ Handles automatic events, analytics tracking, and state transitions.
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
-from .models import Admission, AdmissionEvent, AnalyticEvent, Enquiry
+from .models import Admission, AdmissionEvent, AnalyticEvent, Enquiry, Student
 
 
 @receiver(pre_save, sender=Admission)
@@ -52,6 +52,10 @@ def admission_post_save(sender, instance, created, **kwargs):
             },
             admission=instance
         )
+        
+        # Auto-create student when admission is approved
+        if instance.state == 'approved' and old_state != 'approved':
+            create_student_from_admission(instance)
     
     # Step completed (but state not changed)
     elif not created and old_state == instance.state == 'draft':
@@ -89,6 +93,52 @@ def admission_post_save(sender, instance, created, **kwargs):
             },
             admission=instance
         )
+
+
+def create_student_from_admission(admission):
+    """
+    Automatically create a Student record when an Admission is approved.
+    Copies all relevant data from the admission to the student record.
+    """
+    # Check if student already exists for this admission
+    if hasattr(admission, 'student_record') and admission.student_record:
+        print(f"Student already exists for admission {admission.application_number}")
+        return admission.student_record
+    
+    # Generate batch name from program and current year
+    current_year = timezone.now().year
+    batch_name = f"{admission.program.name} {current_year}" if admission.program else f"Batch {current_year}"
+    
+    # Create student record from admission data
+    student = Student.objects.create(
+        admission=admission,
+        name=admission.name,
+        student_photo=admission.student_photo,
+        dob=admission.dob,
+        phone=admission.phone,
+        phone_country_code=admission.phone_country_code,
+        email=admission.email,
+        address_house_name=admission.address_house_name,
+        address_place=admission.address_place,
+        address_post_office=admission.address_post_office,
+        address_pin_code=admission.address_pin_code,
+        address_state=admission.address_state,
+        address_district=admission.address_district,
+        guardian_name=admission.guardian_name,
+        guardian_relation=admission.guardian_relation,
+        guardian_phone=admission.guardian_phone,
+        guardian_phone_country_code=admission.guardian_phone_country_code,
+        guardian_email=admission.guardian_email,
+        guardian_occupation=admission.guardian_occupation,
+        program=admission.program,
+        batch=batch_name,
+        student_status='studying',
+        languages_known=admission.languages_known or [],
+        enrollment_date=timezone.now().date()
+    )
+    
+    print(f"Auto-created student {student.student_number} from admission {admission.application_number}")
+    return student
 
 
 @receiver(pre_save, sender=Enquiry)

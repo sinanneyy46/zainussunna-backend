@@ -6,46 +6,61 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .views import (
-    ProgramViewSet, AdmissionViewSet, InternalNoteViewSet,
-    ContentPageViewSet, AchievementViewSet, GalleryViewSet,
-    EnquiryViewSet, AnalyticsViewSet, HealthCheckView, FacultyViewSet,
-    AdmissionExportView, WhatsAppConfigViewSet,
-    DashboardView, VivaSheetView, FullExportView
+    # Faculty Dashboard Views
+    FacultyLoginView, FacultyProfileView, FacultyDashboardView,
+    FacultyClassesView, FacultyActivityView, FacultyClassStudentsView,
+    FacultyClassAttendanceView, FacultyStudentDetailView, FacultyStudentAttendanceView,
+    FacultyStudentNotesView, SaveAttendanceView,
+    # Original views
+    attendance_list, attendance_detail, faculty_list, class_list, class_detail,
+    student_list, student_detail,
+    # Public API ViewSets
+    ProgramViewSet, AchievementViewSet, GalleryViewSet, FacultyViewSet,
+    ContentPageViewSet, EnquiryViewSet, HealthCheckView,
+    AdmissionViewSet, WhatsAppConfigViewSet
 )
 
 router = DefaultRouter()
+# Register public API endpoints
 router.register(r'programs', ProgramViewSet, basename='program')
-router.register(r'admissions', AdmissionViewSet, basename='admission')
-router.register(r'notes', InternalNoteViewSet, basename='note')
-router.register(r'content', ContentPageViewSet, basename='content')
 router.register(r'achievements', AchievementViewSet, basename='achievement')
 router.register(r'gallery', GalleryViewSet, basename='gallery')
 router.register(r'faculty', FacultyViewSet, basename='faculty')
-router.register(r'enquiries', EnquiryViewSet, basename='enquiry')
-router.register(r'analytics', AnalyticsViewSet, basename='analytics')
+router.register(r'content', ContentPageViewSet, basename='content')
+router.register(r'admissions', AdmissionViewSet, basename='admission')
 router.register(r'whatsapp', WhatsAppConfigViewSet, basename='whatsapp')
 
 urlpatterns = [
-    path('', include(router.urls)),
-    
     # JWT Authentication
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
-    # Health check
-    path('health/', HealthCheckView.as_view(), name='health_check'),
+    # Faculty Dashboard API
+    path('faculty/login/', FacultyLoginView.as_view(), name='faculty_login'),
+    path('faculty/profile/', FacultyProfileView.as_view(), name='faculty_profile'),
+    path('faculty/dashboard/', FacultyDashboardView.as_view(), name='faculty_dashboard'),
+    path('faculty/classes/', FacultyClassesView.as_view(), name='faculty_classes'),
+    path('faculty/classes/<str:class_id>/students/', FacultyClassStudentsView.as_view(), name='faculty_class_students'),
+    path('faculty/classes/<str:class_id>/attendance/', FacultyClassAttendanceView.as_view(), name='faculty_class_attendance'),
+    path('faculty/activity/', FacultyActivityView.as_view(), name='faculty_activity'),
+    path('faculty/students/<str:student_id>/', FacultyStudentDetailView.as_view(), name='faculty_student_detail'),
+    path('faculty/students/<str:student_id>/attendance/', FacultyStudentAttendanceView.as_view(), name='faculty_student_attendance'),
+    path('faculty/students/<str:student_id>/notes/', FacultyStudentNotesView.as_view(), name='faculty_add_note'),
+    path('faculty/classes/<str:class_id>/save-attendance/', SaveAttendanceView.as_view(), name='faculty_save_attendance'),
     
-    # SECTION 1: Dashboard Overview API
-    path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    # Additional endpoints
+    path('faculties/', faculty_list, name='faculty_list'),
+    path('classes/', class_list, name='class_list'),
+    path('classes/<str:pk>/', class_detail, name='class_detail'),
+    path('attendances/', attendance_list, name='attendance_list'),
+    path('attendances/<str:pk>/', attendance_detail, name='attendance_detail'),
+    path('student-list/', student_list, name='student_list'),
+    path('students/<str:pk>/', student_detail, name='student_detail'),
     
-    # SECTION 4: Interview/Viva PDF Sheet
-    path('admissions/<uuid:pk>/viva-sheet/', VivaSheetView.as_view(), name='viva_sheet'),
+    # Router URLs (ViewSets)
+    path('', include(router.urls)),
     
-    # SECTION 5: Full Data Export
-    path('admissions/export/', AdmissionExportView.as_view(), name='admissions_export'),
-    path('admissions/export/full/', FullExportView.as_view(), name='admissions_full_export'),
-    
-    # SECTION 9: Bulk Actions (uses admission viewset)
-    # POST /api/core/admissions/bulk-action/ - handled by AdmissionViewSet
+    # Public endpoints
+    path('enquiries/', EnquiryViewSet.as_view({'post': 'create'}), name='enquiry-create'),
+    path('health/', HealthCheckView.as_view(), name='health-check'),
 ]
-
